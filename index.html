@@ -129,10 +129,17 @@
           <h2>Популярні товари</h2>
         </div>
 
+
         <div class="products-grid">
 
+
           <!-- PRODUCT 1 -->
-          <article class="product-card">
+          <article
+            class="product-card"
+            data-id="tanuki-plush"
+            data-name="Tanuki Plush"
+            data-price="499"
+          >
 
             <div class="product-image">
               🦝
@@ -144,7 +151,9 @@
                 Плюшеві іграшки
               </span>
 
-              <h3>Tanuki Plush</h3>
+              <h3>
+                Tanuki Plush
+              </h3>
 
               <p>
                 Милий плюшевий танукі
@@ -160,7 +169,7 @@
                 <button
                   class="add-button"
                   type="button"
-                  onclick="addToCart(event)"
+                  onclick="addToCart('tanuki-plush', 'Tanuki Plush', 499, '🦝')"
                 >
                   Додати
                 </button>
@@ -173,7 +182,12 @@
 
 
           <!-- PRODUCT 2 -->
-          <article class="product-card">
+          <article
+            class="product-card"
+            data-id="kawaii-stickers"
+            data-name="Kawaii Sticker Pack"
+            data-price="149"
+          >
 
             <div class="product-image">
               🌸
@@ -185,7 +199,9 @@
                 Аксесуари
               </span>
 
-              <h3>Kawaii Sticker Pack</h3>
+              <h3>
+                Kawaii Sticker Pack
+              </h3>
 
               <p>
                 Набір милих стікерів
@@ -201,7 +217,7 @@
                 <button
                   class="add-button"
                   type="button"
-                  onclick="addToCart(event)"
+                  onclick="addToCart('kawaii-stickers', 'Kawaii Sticker Pack', 149, '🌸')"
                 >
                   Додати
                 </button>
@@ -214,7 +230,12 @@
 
 
           <!-- PRODUCT 3 -->
-          <article class="product-card">
+          <article
+            class="product-card"
+            data-id="kawaii-accessory"
+            data-name="Kawaii Accessory"
+            data-price="299"
+          >
 
             <div class="product-image">
               🎀
@@ -226,7 +247,9 @@
                 Аксесуари
               </span>
 
-              <h3>Kawaii Accessory</h3>
+              <h3>
+                Kawaii Accessory
+              </h3>
 
               <p>
                 Стильний kawaii аксесуар
@@ -242,7 +265,7 @@
                 <button
                   class="add-button"
                   type="button"
-                  onclick="addToCart(event)"
+                  onclick="addToCart('kawaii-accessory', 'Kawaii Accessory', 299, '🎀')"
                 >
                   Додати
                 </button>
@@ -252,6 +275,7 @@
             </div>
 
           </article>
+
 
         </div>
 
@@ -307,12 +331,19 @@
     <div class="container footer-inner">
 
       <div>
-        <strong>🦝 Tanuki Shop</strong>
-        <p>Kawaii & Anime Store</p>
+        <strong>
+          🦝 Tanuki Shop
+        </strong>
+
+        <p>
+          Kawaii & Anime Store
+        </p>
       </div>
 
       <div>
-        <p>© 2026 Tanuki Shop</p>
+        <p>
+          © 2026 Tanuki Shop
+        </p>
       </div>
 
     </div>
@@ -320,63 +351,210 @@
   </footer>
 
 
-  <!-- CART SCRIPT -->
-  <script>
-    let cartCount = 0;
+  <!-- CART MODAL -->
+  <div
+    id="cartModal"
+    class="cart-modal"
+    aria-hidden="true"
+  >
 
-    const cartCountElement =
-      document.getElementById("cartCount");
+    <div class="cart-overlay" id="cartOverlay"></div>
 
-    const cartButton =
-      document.getElementById("cartButton");
+    <div class="cart-window">
 
+      <div class="cart-header">
 
-    function updateCart() {
-      cartCountElement.textContent = cartCount;
-    }
+        <h2>
+          🛒 Ваш кошик
+        </h2>
 
+        <button
+          id="closeCart"
+          type="button"
+          aria-label="Закрити кошик"
+        >
+          ✕
+        </button>
 
-    function addToCart(event) {
-
-      cartCount++;
-
-      updateCart();
-
-      const button = event.currentTarget;
-
-      const originalText = button.textContent;
-
-      button.textContent = "✓ Додано";
-
-      setTimeout(function () {
-        button.textContent = originalText;
-      }, 1200);
-    }
+      </div>
 
 
-    cartButton.addEventListener("click", function () {
-
-      if (cartCount === 0) {
-
-        alert("🛒 Кошик поки порожній.");
-
-        return;
-      }
-
-      alert(
-        "🛒 У кошику товарів: " +
-        cartCount +
-        "\n\nПовноцінний кошик підключимо на наступному етапі."
-      );
-
-    });
+      <div
+        id="cartItems"
+        class="cart-items"
+      >
+      </div>
 
 
-    updateCart();
-  </script>
+      <div
+        id="emptyCart"
+        class="empty-cart"
+      >
+        🦝
+        <h3>
+          Кошик порожній
+        </h3>
+
+        <p>
+          Додайте щось kawaii з каталогу 💖
+        </p>
+      </div>
 
 
-  <!-- KEYCRM ONLINE CHAT -->
+      <div
+        id="cartFooter"
+        class="cart-footer"
+      >
+
+        <div class="cart-total">
+
+          <span>
+            Разом:
+          </span>
+
+          <strong id="cartTotal">
+            0 ₴
+          </strong>
+
+        </div>
+
+
+        <button
+          id="clearCart"
+          class="clear-cart"
+          type="button"
+        >
+          🗑️ Очистити кошик
+        </button>
+
+
+        <button
+          id="checkoutButton"
+          class="checkout-button"
+          type="button"
+        >
+          📦 Оформити замовлення
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+
+  <!-- CHECKOUT MODAL -->
+  <div
+    id="checkoutModal"
+    class="checkout-modal"
+    aria-hidden="true"
+  >
+
+    <div class="checkout-overlay" id="checkoutOverlay"></div>
+
+    <div class="checkout-window">
+
+      <div class="checkout-header">
+
+        <h2>
+          📦 Оформлення замовлення
+        </h2>
+
+        <button
+          id="closeCheckout"
+          type="button"
+          aria-label="Закрити"
+        >
+          ✕
+        </button>
+
+      </div>
+
+
+      <form id="checkoutForm">
+
+        <label>
+          Ваше ім'я
+          <input
+            type="text"
+            id="customerName"
+            required
+            placeholder="Наприклад: Сашко"
+          >
+        </label>
+
+
+        <label>
+          Номер телефону
+          <input
+            type="tel"
+            id="customerPhone"
+            required
+            placeholder="+380..."
+          >
+        </label>
+
+
+        <label>
+          Місто
+          <input
+            type="text"
+            id="customerCity"
+            required
+            placeholder="Ваше місто"
+          >
+        </label>
+
+
+        <label>
+          Адреса / відділення
+          <input
+            type="text"
+            id="customerAddress"
+            required
+            placeholder="Номер відділення або адреса"
+          >
+        </label>
+
+
+        <label>
+          Коментар до замовлення
+          <textarea
+            id="customerComment"
+            rows="4"
+            placeholder="Наприклад: зателефонуйте перед відправкою"
+          ></textarea>
+        </label>
+
+
+        <div class="checkout-summary">
+
+          <span>
+            Сума замовлення:
+          </span>
+
+          <strong id="checkoutTotal">
+            0 ₴
+          </strong>
+
+        </div>
+
+
+        <button
+          type="submit"
+          class="checkout-submit"
+        >
+          ✅ Підтвердити замовлення
+        </button>
+
+      </form>
+
+    </div>
+
+  </div>
+
+
+  <!-- KEYCRM CHAT -->
   <script>
     (function(w, d, t, u, c) {
 
@@ -393,9 +571,7 @@
           w.KeyCRM &&
           typeof w.KeyCRM.render === "function"
         ) {
-
           w.KeyCRM.render(c);
-
         }
 
       };
@@ -408,9 +584,843 @@
       "script",
       "https://chat.key.live/bundles/widget.min.js",
       {
-        token: "946b2614-43d8-4bfe-8b4a-7d760d7a56df"
+        token: "CURRENT_KEYCRM_TOKEN"
       }
     );
+  </script>
+
+
+  <!-- STORE SCRIPT -->
+  <script>
+
+    /*
+      ========================================
+      TANUKI SHOP CART
+      ========================================
+    */
+
+    let cart = [];
+
+    try {
+
+      const savedCart =
+        localStorage.getItem("tanukiShopCart");
+
+      if (savedCart) {
+        cart = JSON.parse(savedCart);
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Не вдалося завантажити кошик:",
+        error
+      );
+
+      cart = [];
+
+    }
+
+
+    const cartButton =
+      document.getElementById("cartButton");
+
+    const cartCount =
+      document.getElementById("cartCount");
+
+    const cartModal =
+      document.getElementById("cartModal");
+
+    const cartOverlay =
+      document.getElementById("cartOverlay");
+
+    const closeCart =
+      document.getElementById("closeCart");
+
+    const cartItems =
+      document.getElementById("cartItems");
+
+    const emptyCart =
+      document.getElementById("emptyCart");
+
+    const cartFooter =
+      document.getElementById("cartFooter");
+
+    const cartTotal =
+      document.getElementById("cartTotal");
+
+    const clearCart =
+      document.getElementById("clearCart");
+
+    const checkoutButton =
+      document.getElementById("checkoutButton");
+
+
+    const checkoutModal =
+      document.getElementById("checkoutModal");
+
+    const checkoutOverlay =
+      document.getElementById("checkoutOverlay");
+
+    const closeCheckout =
+      document.getElementById("closeCheckout");
+
+    const checkoutForm =
+      document.getElementById("checkoutForm");
+
+    const checkoutTotal =
+      document.getElementById("checkoutTotal");
+
+
+    /*
+      SAVE CART
+    */
+
+    function saveCart() {
+
+      localStorage.setItem(
+        "tanukiShopCart",
+        JSON.stringify(cart)
+      );
+
+    }
+
+
+    /*
+      FORMAT PRICE
+    */
+
+    function formatPrice(price) {
+
+      return new Intl.NumberFormat(
+        "uk-UA"
+      ).format(price) + " ₴";
+
+    }
+
+
+    /*
+      UPDATE HEADER COUNT
+    */
+
+    function updateCartCount() {
+
+      const totalQuantity =
+        cart.reduce(
+          function(total, item) {
+            return total + item.quantity;
+          },
+          0
+        );
+
+      cartCount.textContent =
+        totalQuantity;
+
+    }
+
+
+    /*
+      ADD PRODUCT
+    */
+
+    function addToCart(
+      id,
+      name,
+      price,
+      icon
+    ) {
+
+      const existingItem =
+        cart.find(
+          function(item) {
+            return item.id === id;
+          }
+        );
+
+
+      if (existingItem) {
+
+        existingItem.quantity++;
+
+      } else {
+
+        cart.push({
+          id: id,
+          name: name,
+          price: price,
+          icon: icon,
+          quantity: 1
+        });
+
+      }
+
+
+      saveCart();
+
+      updateCartCount();
+
+      renderCart();
+
+
+      /*
+        Small visual feedback
+      */
+
+      const buttons =
+        document.querySelectorAll(
+          ".add-button"
+        );
+
+      buttons.forEach(
+        function(button) {
+
+          if (
+            button.getAttribute("onclick") &&
+            button.getAttribute("onclick").includes(id)
+          ) {
+
+            const originalText =
+              button.textContent;
+
+            button.textContent =
+              "✓ Додано";
+
+            setTimeout(
+              function() {
+                button.textContent =
+                  originalText;
+              },
+              1000
+            );
+
+          }
+
+        }
+      );
+
+    }
+
+
+    /*
+      REMOVE PRODUCT
+    */
+
+    function removeFromCart(id) {
+
+      cart =
+        cart.filter(
+          function(item) {
+            return item.id !== id;
+          }
+        );
+
+      saveCart();
+
+      updateCartCount();
+
+      renderCart();
+
+    }
+
+
+    /*
+      CHANGE QUANTITY
+    */
+
+    function changeQuantity(
+      id,
+      amount
+    ) {
+
+      const item =
+        cart.find(
+          function(item) {
+            return item.id === id;
+          }
+        );
+
+
+      if (!item) {
+        return;
+      }
+
+
+      item.quantity += amount;
+
+
+      if (item.quantity <= 0) {
+
+        removeFromCart(id);
+
+        return;
+
+      }
+
+
+      saveCart();
+
+      updateCartCount();
+
+      renderCart();
+
+    }
+
+
+    /*
+      CALCULATE TOTAL
+    */
+
+    function getCartTotal() {
+
+      return cart.reduce(
+        function(total, item) {
+
+          return total +
+            item.price *
+            item.quantity;
+
+        },
+        0
+      );
+
+    }
+
+
+    /*
+      RENDER CART
+    */
+
+    function renderCart() {
+
+      updateCartCount();
+
+
+      if (cart.length === 0) {
+
+        cartItems.innerHTML = "";
+
+        emptyCart.style.display =
+          "block";
+
+        cartFooter.style.display =
+          "none";
+
+        return;
+
+      }
+
+
+      emptyCart.style.display =
+        "none";
+
+      cartFooter.style.display =
+        "block";
+
+
+      cartItems.innerHTML = "";
+
+
+      cart.forEach(
+        function(item) {
+
+          const itemElement =
+            document.createElement("div");
+
+          itemElement.className =
+            "cart-item";
+
+
+          itemElement.innerHTML = `
+
+            <div class="cart-item-icon">
+              ${item.icon}
+            </div>
+
+            <div class="cart-item-info">
+
+              <h3>
+                ${escapeHtml(item.name)}
+              </h3>
+
+              <strong>
+                ${formatPrice(item.price)}
+              </strong>
+
+            </div>
+
+            <div class="cart-item-controls">
+
+              <button
+                type="button"
+                onclick="changeQuantity('${item.id}', -1)"
+                aria-label="Зменшити кількість"
+              >
+                −
+              </button>
+
+              <span>
+                ${item.quantity}
+              </span>
+
+              <button
+                type="button"
+                onclick="changeQuantity('${item.id}', 1)"
+                aria-label="Збільшити кількість"
+              >
+                +
+              </button>
+
+            </div>
+
+            <button
+              class="remove-item"
+              type="button"
+              onclick="removeFromCart('${item.id}')"
+              aria-label="Видалити товар"
+            >
+              🗑️
+            </button>
+
+          `;
+
+
+          cartItems.appendChild(
+            itemElement
+          );
+
+        }
+      );
+
+
+      const total =
+        getCartTotal();
+
+
+      cartTotal.textContent =
+        formatPrice(total);
+
+      checkoutTotal.textContent =
+        formatPrice(total);
+
+    }
+
+
+    /*
+      ESCAPE HTML
+    */
+
+    function escapeHtml(text) {
+
+      const div =
+        document.createElement("div");
+
+      div.textContent =
+        text;
+
+      return div.innerHTML;
+
+    }
+
+
+    /*
+      OPEN CART
+    */
+
+    function openCart() {
+
+      cartModal.classList.add(
+        "active"
+      );
+
+      cartModal.setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
+      document.body.style.overflow =
+        "hidden";
+
+      renderCart();
+
+    }
+
+
+    /*
+      CLOSE CART
+    */
+
+    function closeCartWindow() {
+
+      cartModal.classList.remove(
+        "active"
+      );
+
+      cartModal.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+      document.body.style.overflow =
+        "";
+
+    }
+
+
+    /*
+      OPEN CHECKOUT
+    */
+
+    function openCheckout() {
+
+      if (cart.length === 0) {
+
+        alert(
+          "🛒 Спочатку додайте товар у кошик."
+        );
+
+        return;
+
+      }
+
+
+      closeCartWindow();
+
+
+      checkoutModal.classList.add(
+        "active"
+      );
+
+      checkoutModal.setAttribute(
+        "aria-hidden",
+        "false"
+      );
+
+      document.body.style.overflow =
+        "hidden";
+
+
+      checkoutTotal.textContent =
+        formatPrice(
+          getCartTotal()
+        );
+
+    }
+
+
+    /*
+      CLOSE CHECKOUT
+    */
+
+    function closeCheckoutWindow() {
+
+      checkoutModal.classList.remove(
+        "active"
+      );
+
+      checkoutModal.setAttribute(
+        "aria-hidden",
+        "true"
+      );
+
+      document.body.style.overflow =
+        "";
+
+    }
+
+
+    /*
+      CLEAR CART
+    */
+
+    clearCart.addEventListener(
+      "click",
+      function() {
+
+        if (cart.length === 0) {
+          return;
+        }
+
+
+        const confirmed =
+          confirm(
+            "Очистити весь кошик?"
+          );
+
+
+        if (!confirmed) {
+          return;
+        }
+
+
+        cart = [];
+
+        saveCart();
+
+        updateCartCount();
+
+        renderCart();
+
+      }
+    );
+
+
+    /*
+      CART BUTTON
+    */
+
+    cartButton.addEventListener(
+      "click",
+      openCart
+    );
+
+
+    /*
+      CLOSE BUTTON
+    */
+
+    closeCart.addEventListener(
+      "click",
+      closeCartWindow
+    );
+
+
+    cartOverlay.addEventListener(
+      "click",
+      closeCartWindow
+    );
+
+
+    /*
+      CHECKOUT
+    */
+
+    checkoutButton.addEventListener(
+      "click",
+      openCheckout
+    );
+
+
+    closeCheckout.addEventListener(
+      "click",
+      closeCheckoutWindow
+    );
+
+
+    checkoutOverlay.addEventListener(
+      "click",
+      closeCheckoutWindow
+    );
+
+
+    /*
+      CHECKOUT FORM
+    */
+
+    checkoutForm.addEventListener(
+      "submit",
+      function(event) {
+
+        event.preventDefault();
+
+
+        if (cart.length === 0) {
+
+          alert(
+            "🛒 Кошик порожній."
+          );
+
+          return;
+
+        }
+
+
+        const customerName =
+          document
+            .getElementById(
+              "customerName"
+            )
+            .value
+            .trim();
+
+
+        const customerPhone =
+          document
+            .getElementById(
+              "customerPhone"
+            )
+            .value
+            .trim();
+
+
+        const customerCity =
+          document
+            .getElementById(
+              "customerCity"
+            )
+            .value
+            .trim();
+
+
+        const customerAddress =
+          document
+            .getElementById(
+              "customerAddress"
+            )
+            .value
+            .trim();
+
+
+        const customerComment =
+          document
+            .getElementById(
+              "customerComment"
+            )
+            .value
+            .trim();
+
+
+        const orderNumber =
+          "TS-" +
+          Date.now()
+            .toString()
+            .slice(-8);
+
+
+        const orderItems =
+          cart
+            .map(
+              function(item) {
+
+                return (
+                  item.name +
+                  " × " +
+                  item.quantity
+                );
+
+              }
+            )
+            .join(", ");
+
+
+        const total =
+          getCartTotal();
+
+
+        /*
+          Temporary order result.
+
+          Real order sending will be connected
+          to backend/CRM in the next stage.
+        */
+
+        alert(
+          "🎉 Замовлення створено!\n\n" +
+
+          "Номер: " +
+          orderNumber +
+          "\n\n" +
+
+          "👤 " +
+          customerName +
+          "\n" +
+
+          "📞 " +
+          customerPhone +
+          "\n" +
+
+          "📍 " +
+          customerCity +
+          "\n" +
+
+          "🏠 " +
+          customerAddress +
+          "\n\n" +
+
+          "🛍️ " +
+          orderItems +
+          "\n\n" +
+
+          "💰 Разом: " +
+          formatPrice(total) +
+
+          (
+            customerComment
+              ? "\n\n💬 " +
+                customerComment
+              : ""
+          ) +
+
+          "\n\n" +
+
+          "Дякуємо за замовлення! 🦝💖"
+        );
+
+
+        /*
+          Clear cart after successful
+          temporary checkout.
+        */
+
+        cart = [];
+
+        saveCart();
+
+        updateCartCount();
+
+        renderCart();
+
+        checkoutForm.reset();
+
+        closeCheckoutWindow();
+
+      }
+    );
+
+
+    /*
+      ESC KEY
+    */
+
+    document.addEventListener(
+      "keydown",
+      function(event) {
+
+        if (event.key !== "Escape") {
+          return;
+        }
+
+
+        if (
+          cartModal.classList.contains(
+            "active"
+          )
+        ) {
+
+          closeCartWindow();
+
+        }
+
+
+        if (
+          checkoutModal.classList.contains(
+            "active"
+          )
+        ) {
+
+          closeCheckoutWindow();
+
+        }
+
+      }
+    );
+
+
+    /*
+      INITIALIZE
+    */
+
+    renderCart();
+
   </script>
 
 </body>
