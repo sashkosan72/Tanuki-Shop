@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Tanuki Shop — Kawaii & Anime Store</title>
+
+  <meta
+    name="description"
+    content="Tanuki Shop — магазин kawaii та anime товарів."
+  >
+
+  <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="container header-inner">
+
+      <a href="#" class="logo">
+        🦝 <span>Tanuki Shop</span>
+      </a>
+
+      <nav class="main-nav">
+        <a href="#catalog">Каталог</a>
+        <a href="#new">Новинки</a>
+        <a href="#about">Про нас</a>
+      </nav>
+
+      <button class="cart-button" id="cartButton" type="button">
+        🛒 Кошик
+        <span id="cartCount">0</span>
+      </button>
+
+    </div>
+  </header>
+
+
+  <!-- HERO -->
+  <main>
+
+    <section class="hero">
+      <div class="container hero-content">
+
+        <div class="hero-text">
+
+          <span class="hero-badge">
+            ✨ Kawaii • Anime • Gifts
+          </span>
+
+          <h1>
+            Ласкаво просимо до
+            <span>Tanuki Shop</span>
+          </h1>
+
+          <p>
+            Kawaii та anime товари, аксесуари,
+            плюшеві іграшки та милі подарунки
+            для тих, хто любить японську культуру.
+          </p>
+
+          <a href="#catalog" class="hero-button">
+            Перейти до каталогу →
+          </a>
+
+        </div>
+
+        <div class="hero-character">
+          🦝
+        </div>
+
+      </div>
+    </section>
+
+
+    <!-- CATEGORIES -->
+    <section class="categories" id="new">
+
+      <div class="container">
+
+        <div class="section-heading">
+          <span>🌸</span>
+          <h2>Категорії</h2>
+        </div>
+
+        <div class="category-grid">
+
+          <button class="category-card" type="button">
+            🎀
+            <strong>Аксесуари</strong>
+            <span>Милі деталі</span>
+          </button>
+
+          <button class="category-card" type="button">
+            🧸
+            <strong>Плюшеві іграшки</strong>
+            <span>Kawaii друзі</span>
+          </button>
+
+          <button class="category-card" type="button">
+            👕
+            <strong>Одяг</strong>
+            <span>Anime style</span>
+          </button>
+
+          <button class="category-card" type="button">
+            🎁
+            <strong>Подарунки</strong>
+            <span>Для друзів</span>
+          </button>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- CATALOG -->
+    <section class="products-section" id="catalog">
+
+      <div class="container">
+
+        <div class="section-heading">
+          <span>🛍️</span>
+          <h2>Популярні товари</h2>
+        </div>
+
+        <div class="products-grid">
+
+          <!-- PRODUCT 1 -->
+          <article class="product-card">
+
+            <div class="product-image">
+              🦝
+            </div>
+
+            <div class="product-info">
+
+              <span class="product-category">
+                Плюшеві іграшки
+              </span>
+
+              <h3>Tanuki Plush</h3>
+
+              <p>
+                Милий плюшевий танукі
+                для колекції або подарунка.
+              </p>
+
+              <div class="product-bottom">
+
+                <strong class="product-price">
+                  499 ₴
+                </strong>
+
+                <button
+                  class="add-button"
+                  type="button"
+                  onclick="addToCart(event)"
+                >
+                  Додати
+                </button>
+
+              </div>
+
+            </div>
+
+          </article>
+
+
+          <!-- PRODUCT 2 -->
+          <article class="product-card">
+
+            <div class="product-image">
+              🌸
+            </div>
+
+            <div class="product-info">
+
+              <span class="product-category">
+                Аксесуари
+              </span>
+
+              <h3>Kawaii Sticker Pack</h3>
+
+              <p>
+                Набір милих стікерів
+                у kawaii стилі.
+              </p>
+
+              <div class="product-bottom">
+
+                <strong class="product-price">
+                  149 ₴
+                </strong>
+
+                <button
+                  class="add-button"
+                  type="button"
+                  onclick="addToCart(event)"
+                >
+                  Додати
+                </button>
+
+              </div>
+
+            </div>
+
+          </article>
+
+
+          <!-- PRODUCT 3 -->
+          <article class="product-card">
+
+            <div class="product-image">
+              🎀
+            </div>
+
+            <div class="product-info">
+
+              <span class="product-category">
+                Аксесуари
+              </span>
+
+              <h3>Kawaii Accessory</h3>
+
+              <p>
+                Стильний kawaii аксесуар
+                для повсякденного образу.
+              </p>
+
+              <div class="product-bottom">
+
+                <strong class="product-price">
+                  299 ₴
+                </strong>
+
+                <button
+                  class="add-button"
+                  type="button"
+                  onclick="addToCart(event)"
+                >
+                  Додати
+                </button>
+
+              </div>
+
+            </div>
+
+          </article>
+
+        </div>
+
+      </div>
+
+    </section>
+
+
+    <!-- ABOUT -->
+    <section class="about-section" id="about">
+
+      <div class="container about-content">
+
+        <div class="about-icon">
+          🦝
+        </div>
+
+        <div>
+
+          <span class="hero-badge">
+            Про Tanuki Shop
+          </span>
+
+          <h2>
+            Маленький магазин
+            з великим kawaii настроєм 💖
+          </h2>
+
+          <p>
+            Tanuki Shop створений для людей,
+            які люблять anime, kawaii-культуру
+            та милі речі.
+          </p>
+
+          <p>
+            Ми поступово розширюватимемо каталог,
+            додаватимемо нові товари,
+            способи оплати та доставку.
+          </p>
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+
+    <div class="container footer-inner">
+
+      <div>
+        <strong>🦝 Tanuki Shop</strong>
+        <p>Kawaii & Anime Store</p>
+      </div>
+
+      <div>
+        <p>© 2026 Tanuki Shop</p>
+      </div>
+
+    </div>
+
+  </footer>
+
+
+  <!-- CART SCRIPT -->
+  <script>
+    let cartCount = 0;
+
+    const cartCountElement =
+      document.getElementById("cartCount");
+
+    const cartButton =
+      document.getElementById("cartButton");
+
+
+    function updateCart() {
+      cartCountElement.textContent = cartCount;
+    }
+
+
+    function addToCart(event) {
+
+      cartCount++;
+
+      updateCart();
+
+      const button = event.currentTarget;
+
+      const originalText = button.textContent;
+
+      button.textContent = "✓ Додано";
+
+      setTimeout(function () {
+        button.textContent = originalText;
+      }, 1200);
+    }
+
+
+    cartButton.addEventListener("click", function () {
+
+      if (cartCount === 0) {
+
+        alert("🛒 Кошик поки порожній.");
+
+        return;
+      }
+
+      alert(
+        "🛒 У кошику товарів: " +
+        cartCount +
+        "\n\nПовноцінний кошик підключимо на наступному етапі."
+      );
+
+    });
+
+
+    updateCart();
+  </script>
+
+
+  <!-- KEYCRM ONLINE CHAT -->
+  <script>
+    (function(w, d, t, u, c) {
+
+      var s = d.createElement(t);
+      var j = d.getElementsByTagName(t)[0];
+
+      s.src = u;
+      s.async = true;
+      s.defer = true;
+
+      s.onload = function() {
+
+        if (
+          w.KeyCRM &&
+          typeof w.KeyCRM.render === "function"
+        ) {
+
+          w.KeyCRM.render(c);
+
+        }
+
+      };
+
+      j.parentNode.insertBefore(s, j);
+
+    })(
+      window,
+      document,
+      "script",
+      "https://chat.key.live/bundles/widget.min.js",
+      {
+        token: "946b2614-43d8-4bfe-8b4a-7d760d7a56df"
+      }
+    );
+  </script>
+
+</body>
+</html>
