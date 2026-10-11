@@ -4,14 +4,25 @@
   "name": "tanuki-shop",
   "main": "src/index.js",
   "compatibility_date": "2026-10-11",
+
   "observability": {
     "enabled": true
   },
+
   "assets": {
     "directory": ".",
     "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
+    "not_found_handling": "single-page-application",
+    "exclude": [
+      ".git/**",
+      ".wrangler/**",
+      "src/**",
+      "wrangler.jsonc",
+      "README.md",
+      ".gitignore"
+    ]
   },
+
   "d1_databases": [
     {
       "binding": "DB",
