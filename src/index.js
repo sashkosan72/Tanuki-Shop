@@ -1,17 +1,7 @@
-
 const PRODUCTS = {
-  "tanuki-plush": {
-    name: "Tanuki Plush",
-    price: 499
-  },
-  "kawaii-stickers": {
-    name: "Kawaii Sticker Pack",
-    price: 149
-  },
-  "kawaii-accessory": {
-    name: "Kawaii Accessory",
-    price: 299
-  }
+  "tanuki-plush": { name: "Tanuki Plush", price: 499 },
+  "kawaii-stickers": { name: "Kawaii Sticker Pack", price: 149 },
+  "kawaii-accessory": { name: "Kawaii Accessory", price: 299 }
 };
 
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
@@ -23,6 +13,12 @@ const ORDER_STATUSES = [
   "completed",
   "cancelled"
 ];
+
+const TELEGRAM_STATUS = {
+  confirmed: "Підтверджено",
+  shipped: "Відправлено",
+  cancelled: "Скасовано"
+};
 
 function json(data, status = 200, headers = {}) {
   return Response.json(data, {
@@ -39,10 +35,6 @@ function cleanText(value, maxLength = 300) {
   return value.trim().slice(0, maxLength);
 }
 
-// ================================
-// TELEGRAM NOTIFICATIONS
-// ================================
-
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, char => ({
     "&": "&amp;",
@@ -53,11 +45,50 @@ function escapeHtml(value) {
   })[char]);
 }
 
-async function notifyTelegram(env, order) {
+// ================================
+// TELEGRAM API
+// ================================
+
+async function telegramCall(env, method, data) {
   const token = env.TELEGRAM_BOT_TOKEN;
+  if (!token) throw new Error("Telegram token is missing");
+
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/${method}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+      signal: AbortSignal.timeout(10000)
+    }
+  );
+
+  const result = await response.json();
+
+  if (!response.ok || !result.ok) {
+    throw new Error(
+      `Telegram ${method} failed: ${JSON.stringify(result)}`
+    );
+  }
+
+  return result;
+}
+
+async function configureTelegramWebhook(env) {
+  const secret = env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret) throw new Error("TELEGRAM_WEBHOOK_SECRET is missing");
+
+  return telegramCall(env, "setWebhook", {
+    url: "https://tanukishop.pp.ua/api/telegram/webhook",
+    secret_token: secret,
+    allowed_updates: ["callback_query"]
+  });
+}
+
+async function notifyTelegram(env, order) {
   const chatId = env.TELEGRAM_CHAT_ID;
 
-  if (!token || !chatId) {
+  if (!env.TELEGRAM_BOT_TOKEN || !chatId) {
     console.error("Telegram secrets are missing");
     return;
   }
@@ -79,36 +110,157 @@ async function notifyTelegram(env, order) {
     ...productLines,
     "",
     `<b>Сума:</b> ${order.total} ₴`,
-    `<b>Коментар:</b> ${escapeHtml(order.customerComment || "Немає")}`
+    `<b>Коментар:</b> ${escapeHtml(order.customerComment || "Немає")}`,
+    "",
+    "<b>Статус:</b> Нове замовлення"
   ].join("\n");
 
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: message,
-          parse_mode: "HTML"
-        }),
-        signal: AbortSignal.timeout(8000)
-      }
-    );
+    await configureTelegramWebhook(env);
 
-    if (!response.ok) {
-      console.error(
-        "Telegram notification failed:",
-        response.status,
-        await response.text()
-      );
-    }
+    await telegramCall(env, "sendMessage", {
+      chat_id: chatId,
+      text: message,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            {
+              text: "✅ Підтвердити",
+              callback_data: `tanuki:${order.id}:confirmed`
+            }
+          ],
+          [
+            {
+              text: "📦 Відправлено",
+              callback_data: `tanuki:${order.id}:shipped`
+            }
+          ],
+          [
+            {
+              text: "❌ Скасувати",
+              callback_data: `tanuki:${order.id}:cancelled`
+            }
+          ]
+        ]
+      }
+    });
   } catch (error) {
     console.error("Telegram notification error:", error);
   }
+}
+
+async function handleTelegramWebhook(request, env) {
+  const secret = env.TELEGRAM_WEBHOOK_SECRET;
+  const receivedSecret = request.headers.get(
+    "X-Telegram-Bot-Api-Secret-Token"
+  );
+
+  if (!secret || receivedSecret !== secret) {
+    return json({ ok: false, error: "Unauthorized" }, 401);
+  }
+
+  let update;
+
+  try {
+    update = await request.json();
+  } catch {
+    return json({ ok: false }, 400);
+  }
+
+  const callback = update.callback_query;
+  if (!callback) return json({ ok: true });
+
+  const chatId = String(env.TELEGRAM_CHAT_ID || "");
+  const callbackChatId = String(callback.message?.chat?.id || "");
+  const callbackUserId = String(callback.from?.id || "");
+
+  if (
+    !chatId ||
+    callbackChatId !== chatId ||
+    callbackUserId !== chatId
+  ) {
+    await telegramCall(env, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: "У вас немає дозволу змінювати замовлення.",
+      show_alert: true
+    }).catch(error => console.error(error));
+
+    return json({ ok: true });
+  }
+
+  const match = String(callback.data || "").match(
+    /^tanuki:(\d+):(confirmed|shipped|cancelled)$/
+  );
+
+  if (!match) {
+    await telegramCall(env, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: "Невідома дія.",
+      show_alert: true
+    }).catch(error => console.error(error));
+
+    return json({ ok: true });
+  }
+
+  const orderId = Number(match[1]);
+  const status = match[2];
+
+  try {
+    const result = await env.DB.prepare(`
+      UPDATE orders
+      SET status = ?
+      WHERE id = ?
+    `).bind(status, orderId).run();
+
+    if (!result.meta || result.meta.changes === 0) {
+      await telegramCall(env, "answerCallbackQuery", {
+        callback_query_id: callback.id,
+        text: "Замовлення не знайдено.",
+        show_alert: true
+      });
+
+      return json({ ok: true });
+    }
+
+    await telegramCall(env, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: `Статус змінено: ${TELEGRAM_STATUS[status]}`
+    });
+
+    const originalText = callback.message?.text || "";
+    const cleanMessage = originalText.replace(
+      /\n\n<b>Статус:<\/b>.*$/s,
+      ""
+    );
+
+    const updatedMessage = [
+      cleanMessage,
+      "",
+      `<b>Статус:</b> ${TELEGRAM_STATUS[status]}`
+    ].join("\n");
+
+    await telegramCall(env, "editMessageText", {
+      chat_id: callback.message.chat.id,
+      message_id: callback.message.message_id,
+      text: updatedMessage,
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: []
+      }
+    });
+
+  } catch (error) {
+    console.error("Telegram webhook error:", error);
+
+    await telegramCall(env, "answerCallbackQuery", {
+      callback_query_id: callback.id,
+      text: "Не вдалося оновити статус. Спробуйте ще раз.",
+      show_alert: true
+    }).catch(err => console.error(err));
+  }
+
+  return json({ ok: true });
 }
 
 // ================================
@@ -132,10 +284,7 @@ async function signSession(value, secret) {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
-    {
-      name: "HMAC",
-      hash: "SHA-256"
-    },
+    { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"]
   );
@@ -192,11 +341,7 @@ async function createSession(secret) {
 async function verifySession(request, secret) {
   if (!secret) return false;
 
-  const token = getCookie(
-    request,
-    "tanuki_admin_session"
-  );
-
+  const token = getCookie(request, "tanuki_admin_session");
   const parts = token.split(".");
 
   if (parts.length !== 3) return false;
@@ -372,9 +517,8 @@ async function createOrder(request, env) {
 
     await env.DB.batch(statements);
 
-    // Send Telegram notification.
-    // Telegram failure does not cancel the saved order.
     await notifyTelegram(env, {
+      id: orderId,
       orderNumber,
       customerName,
       customerPhone,
@@ -474,10 +618,7 @@ async function handleAdmin(request, env, url) {
   }
 
   if (path === "/api/admin/me" && method === "GET") {
-    const authenticated = await verifySession(
-      request,
-      secret
-    );
+    const authenticated = await verifySession(request, secret);
 
     return json({
       ok: true,
@@ -485,226 +626,9 @@ async function handleAdmin(request, env, url) {
     });
   }
 
-  const authenticated = await verifySession(
-    request,
-    secret
-  );
+  const authenticated = await verifySession(request, secret);
 
   if (!authenticated) {
     return json({
       ok: false,
-      error: "Потрібно увійти в адмін-панель"
-    }, 401);
-  }
-
-  if (path === "/api/admin/orders" && method === "GET") {
-    try {
-      const result = await env.DB.prepare(`
-        SELECT
-          id,
-          order_number,
-          customer_name,
-          customer_phone,
-          customer_city,
-          customer_address,
-          customer_comment,
-          total_amount,
-          status,
-          created_at
-        FROM orders
-        ORDER BY created_at DESC, id DESC
-        LIMIT 100
-      `).all();
-
-      const orders = result.results || [];
-
-      if (orders.length === 0) {
-        return json({
-          ok: true,
-          orders: []
-        });
-      }
-
-      const placeholders = orders.map(() => "?").join(",");
-
-      const itemResult = await env.DB.prepare(`
-        SELECT
-          order_id,
-          product_id,
-          product_name,
-          price,
-          quantity
-        FROM order_items
-        WHERE order_id IN (${placeholders})
-        ORDER BY id ASC
-      `).bind(
-        ...orders.map(order => order.id)
-      ).all();
-
-      const itemsByOrder = {};
-
-      for (const item of itemResult.results || []) {
-        if (!itemsByOrder[item.order_id]) {
-          itemsByOrder[item.order_id] = [];
-        }
-
-        itemsByOrder[item.order_id].push({
-          product_id: item.product_id,
-          product_name: item.product_name,
-          price: item.price,
-          quantity: item.quantity
-        });
-      }
-
-      const ordersWithItems = orders.map(order => ({
-        ...order,
-        items: itemsByOrder[order.id] || []
-      }));
-
-      return json({
-        ok: true,
-        orders: ordersWithItems
-      });
-
-    } catch (error) {
-      console.error("Admin orders error:", error);
-
-      return json({
-        ok: false,
-        error: "Не вдалося завантажити замовлення"
-      }, 500);
-    }
-  }
-
-  const statusMatch = path.match(
-    /^\/api\/admin\/orders\/(\d+)\/status$/
-  );
-
-  if (statusMatch && method === "PATCH") {
-    const orderId = Number(statusMatch[1]);
-
-    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
-      return json({
-        ok: false,
-        error: "Некоректний номер замовлення"
-      }, 400);
-    }
-
-    let body;
-
-    try {
-      body = await request.json();
-    } catch {
-      return json({
-        ok: false,
-        error: "Некоректний формат запиту"
-      }, 400);
-    }
-
-    const status = cleanText(body.status, 30);
-
-    if (!ORDER_STATUSES.includes(status)) {
-      return json({
-        ok: false,
-        error: "Невідомий статус замовлення"
-      }, 400);
-    }
-
-    try {
-      const result = await env.DB.prepare(`
-        UPDATE orders
-        SET status = ?
-        WHERE id = ?
-      `).bind(status, orderId).run();
-
-      if (!result.meta || result.meta.changes === 0) {
-        return json({
-          ok: false,
-          error: "Замовлення не знайдено"
-        }, 404);
-      }
-
-      return json({
-        ok: true,
-        message: "Статус замовлення оновлено",
-        status
-      });
-
-    } catch (error) {
-      console.error("Admin status update error:", error);
-
-      return json({
-        ok: false,
-        error: "Не вдалося змінити статус"
-      }, 500);
-    }
-  }
-
-  return json({
-    ok: false,
-    error: "Admin API endpoint not found"
-  }, 404);
-}
-
-// ================================
-// MAIN WORKER
-// ================================
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    if (!env.DB || !env.ASSETS) {
-      return json({
-        ok: false,
-        error: "Worker bindings are not configured"
-      }, 500);
-    }
-
-    if (
-      (url.pathname === "/admin" ||
-       url.pathname === "/admin/") &&
-      request.method === "GET"
-    ) {
-      const adminUrl = new URL(
-        "/admin/index.html",
-        url
-      );
-
-      return env.ASSETS.fetch(
-        new Request(adminUrl, request)
-      );
-    }
-
-    if (
-      url.pathname === "/api/health" &&
-      request.method === "GET"
-    ) {
-      return json({
-        ok: true,
-        service: "Tanuki Shop",
-        database: "connected"
-      });
-    }
-
-    if (
-      url.pathname === "/api/orders" &&
-      request.method === "POST"
-    ) {
-      return createOrder(request, env);
-    }
-
-    if (url.pathname.startsWith("/api/admin/")) {
-      return handleAdmin(request, env, url);
-    }
-
-    if (url.pathname.startsWith("/api/")) {
-      return json({
-        ok: false,
-        error: "API endpoint not found"
-      }, 404);
-    }
-
-    return env.ASSETS.fetch(request);
-  }
-};
+      error: "Потр
