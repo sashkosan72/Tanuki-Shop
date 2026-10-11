@@ -1,931 +1,612 @@
-
-const PRODUCTS = {
-  "tanuki-plush": {
-    name: "Tanuki Plush",
-    price: 499
-  },
-  "kawaii-stickers": {
-    name: "Kawaii Sticker Pack",
-    price: 149
-  },
-  "kawaii-accessory": {
-    name: "Kawaii Accessory",
-    price: 299
-  }
-};
-
-const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
-
-const ORDER_STATUSES = [
-  "new",
-  "confirmed",
-  "shipped",
-  "completed",
-  "cancelled"
-];
-
-const STATUS_LABELS = {
-  new: "🆕 Нове",
-  confirmed: "✅ Підтверджено",
-  shipped: "📦 Відправлено",
-  completed: "🎉 Виконано",
-  cancelled: "❌ Скасовано"
-};
-
-/* -------------------- HELPERS -------------------- */
-
-function json(data, status = 200, headers = {}) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
-      ...headers
-    }
-  });
-}
-
-function cleanText(value, maxLength = 500) {
-  if (typeof value !== "string") return "";
-  return value.trim().slice(0, maxLength);
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function getCookie(request, name) {
-  const cookieHeader = request.headers.get("Cookie") || "";
-
-  for (const part of cookieHeader.split(";")) {
-    const separator = part.indexOf("=");
-    if (separator === -1) continue;
-
-    const key = part.slice(0, separator).trim();
-    const value = part.slice(separator + 1).trim();
-
-    if (key === name) return decodeURIComponent(value);
-  }
-
-  return null;
-}
-
-function getTelegramSecret(request) {
-  return request.headers.get("X-Telegram-Bot-Api-Secret-Token");
-}
-
-function generateOrderNumber() {
-  const date = new Date();
-  const datePart = [
-    date.getUTCFullYear(),
-    String(date.getUTCMonth() + 1).padStart(2, "0"),
-    String(date.getUTCDate()).padStart(2, "0")
-  ].join("");
-
-  const randomPart = crypto.randomUUID()
-    .replaceAll("-", "")
-    .slice(0, 6)
-    .toUpperCase();
-
-  return `TAN-${datePart}-${randomPart}`;
-}
-
-async function readJson(request) {
-  try {
-    return await request.json();
-  } catch {
-    return null;
-  }
-}
-
-/* -------------------- ADMIN SESSION -------------------- */
-
-async function createAdminSignature(timestamp, password) {
-  const encoder = new TextEncoder();
-
-  const key = await crypto.subtle.importKey(
-    "raw",
-    encoder.encode(password),
-    {
-      name: "HMAC",
-      hash: "SHA-256"
-    },
-    false,
-    ["sign"]
-  );
-
-  const signature = await crypto.subtle.sign(
-    "HMAC",
-    key,
-    encoder.encode(timestamp)
-  );
-
-  return btoa(
-    String.fromCharCode(...new Uint8Array(signature))
-  )
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replaceAll("=", "");
-}
-
-async function createAdminSession(password) {
-  const timestamp = String(Math.floor(Date.now() / 1000));
-  const signature = await createAdminSignature(timestamp, password);
-
-  return `${timestamp}.${signature}`;
-}
-
-async function verifyAdminSession(request, env) {
-  if (!env.ADMIN_PASSWORD) return false;
-
-  const session = getCookie(request, "tanuki_admin_session");
-  if (!session) return false;
-
-  const parts = session.split(".");
-  if (parts.length !== 2) return false;
-
-  const [timestamp, signature] = parts;
-  const createdAt = Number(timestamp);
-  const now = Math.floor(Date.now() / 1000);
-
-  if (!Number.isSafeInteger(createdAt)) return false;
-  if (createdAt > now + 60) return false;
-  if (now - createdAt > ADMIN_SESSION_SECONDS) return false;
-
-  const expected = await createAdminSignature(
-    timestamp,
-    env.ADMIN_PASSWORD
-  );
-
-  return signature === expected;
-}
-
-function adminCookie(value, maxAge = ADMIN_SESSION_SECONDS) {
-  return [
-    `tanuki_admin_session=${encodeURIComponent(value)}`,
-    "Path=/",
-    "HttpOnly",
-    "Secure",
-    "SameSite=Strict",
-    `Max-Age=${maxAge}`
-  ].join("; ");
-}
-
-async function requireAdmin(request, env) {
-  return verifyAdminSession(request, env);
-}
-
-/* -------------------- TELEGRAM -------------------- */
-
-async function telegramCall(env, method, payload) {
-  if (!env.TELEGRAM_BOT_TOKEN) {
-    throw new Error("Не налаштовано TELEGRAM_BOT_TOKEN.");
-  }
-
-  const response = await fetch(
-    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(payload)
-    }
-  );
-
-  let result;
-
-  try {
-    result = await response.json();
-  } catch {
-    throw new Error("Telegram повернув некоректну відповідь.");
-  }
-
-  if (!response.ok || !result.ok) {
-    const description = result.description || "Невідома помилка Telegram";
-    throw new Error(`Telegram ${method}: ${description}`);
-  }
-
-  return result.result;
-}
-
-async function configureTelegramWebhook(env) {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) {
-    throw new Error("Не налаштовані секрети Telegram webhook.");
-  }
-
-  const webhookUrl =
-    "https://tanukishop.pp.ua/api/telegram/webhook";
-
-  return telegramCall(env, "setWebhook", {
-    url: webhookUrl,
-    secret_token: env.TELEGRAM_WEBHOOK_SECRET,
-    allowed_updates: ["callback_query"]
-  });
-}
-
-async function notifyTelegram(env, order) {
-  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
-    console.error("Telegram не налаштований: перевірте секрети.");
-    return;
-  }
-
-  // Налаштування webhook не повинно блокувати повідомлення.
-  try {
-    await configureTelegramWebhook(env);
-  } catch (error) {
-    console.error("Telegram webhook error:", error.message);
-  }
-
-  const itemsText = order.items
-    .map(item =>
-      `• ${escapeHtml(item.name)} × ${item.quantity} — ${item.price * item.quantity} ₴`
-    )
-    .join("\n");
-
-  const message = [
-    "🦝 <b>Нове замовлення — Tanuki Shop!</b>",
-    "",
-    `🧾 <b>Номер:</b> ${escapeHtml(order.orderNumber)}`,
-    "",
-    "👤 <b>Покупець:</b>",
-    escapeHtml(order.customerName),
-    `📞 ${escapeHtml(order.customerPhone)}`,
-    `🏙 ${escapeHtml(order.customerCity)}`,
-    `📍 ${escapeHtml(order.customerAddress)}`,
-    "",
-    "🛍 <b>Товари:</b>",
-    itemsText,
-    "",
-    `💰 <b>Сума:</b> ${order.total} ₴`,
-    "",
-    order.customerComment
-      ? `💬 <b>Коментар:</b> ${escapeHtml(order.customerComment)}`
-      : "",
-    "",
-    "🆕 <b>Статус:</b> Нове замовлення"
-  ].filter(Boolean).join("\n");
-
-  const keyboard = {
-    inline_keyboard: [
-      [
-        {
-          text: "✅ Підтвердити",
-          callback_data: `tanuki:${order.id}:confirmed`
-        },
-        {
-          text: "📦 Відправлено",
-          callback_data: `tanuki:${order.id}:shipped`
-        }
-      ],
-      [
-        {
-          text: "❌ Скасувати",
-          callback_data: `tanuki:${order.id}:cancelled`
-        }
-      ]
-    ]
-  };
-
-  try {
-    await telegramCall(env, "sendMessage", {
-      chat_id: env.TELEGRAM_CHAT_ID,
-      text: message,
-      parse_mode: "HTML",
-      reply_markup: keyboard
-    });
-  } catch (error) {
-    // Замовлення вже збережене в D1.
-    // Помилка Telegram не повинна скасовувати замовлення.
-    console.error("Telegram notification error:", error.message);
-  }
-}
-
-async function handleTelegramWebhook(request, env) {
-  if (!env.TELEGRAM_WEBHOOK_SECRET) {
-    return json({
-      ok: false,
-      error: "Telegram webhook secret is not configured."
-    }, 500);
-  }
-
-  const receivedSecret = getTelegramSecret(request);
-
-  if (receivedSecret !== env.TELEGRAM_WEBHOOK_SECRET) {
-    return json({
-      ok: false,
-      error: "Unauthorized webhook request."
-    }, 401);
-  }
-
-  const update = await readJson(request);
-
-  if (!update) {
-    return json({
-      ok: false,
-      error: "Invalid JSON."
-    }, 400);
-  }
-
-  const callback = update.callback_query;
-
-  if (!callback) {
-    return json({ ok: true });
-  }
-
-  const callbackData = cleanText(callback.data, 100);
-  const match = callbackData.match(
-    /^tanuki:(\d+):(confirmed|shipped|cancelled)$/
-  );
-
-  if (!match) {
-    return json({ ok: true });
-  }
-
-  const orderId = Number(match[1]);
-  const newStatus = match[2];
-
-  const expectedChat = String(env.TELEGRAM_CHAT_ID || "");
-  const actualChat = String(callback.message?.chat?.id || "");
-  const actualUser = String(callback.from?.id || "");
-
-  // Дозволяємо керувати замовленнями лише з налаштованого
-  // приватного Telegram-чату.
-  if (
-    !expectedChat ||
-    actualChat !== expectedChat ||
-    actualUser !== expectedChat
-  ) {
-    try {
-      await telegramCall(env, "answerCallbackQuery", {
-        callback_query_id: callback.id,
-        text: "Немає доступу до керування замовленнями.",
-        show_alert: true
-      });
-    } catch (error) {
-      console.error("Telegram callback error:", error.message);
-    }
-
-    return json({ ok: true });
-  }
-
-  try {
-    const result = await env.DB.prepare(
-      "UPDATE orders SET status = ? WHERE id = ?"
-    )
-      .bind(newStatus, orderId)
-      .run();
-
-    if (!result.meta?.changes) {
-      await telegramCall(env, "answerCallbackQuery", {
-        callback_query_id: callback.id,
-        text: "Замовлення не знайдено.",
-        show_alert: true
-      });
-
-      return json({ ok: true });
-    }
-
-    const order = await env.DB.prepare(
-      "SELECT order_number FROM orders WHERE id = ?"
-    )
-      .bind(orderId)
-      .first();
-
-    await telegramCall(env, "answerCallbackQuery", {
-      callback_query_id: callback.id,
-      text: `Статус: ${STATUS_LABELS[newStatus]}`
-    });
-
-    const oldText = callback.message?.text || "";
-    const newText =
-      `${oldText}\n\n🔄 <b>Новий статус:</b> ${STATUS_LABELS[newStatus]}` +
-      `\n🧾 ${escapeHtml(order?.order_number || "")}`;
-
-    await telegramCall(env, "editMessageText", {
-      chat_id: actualChat,
-      message_id: callback.message.message_id,
-      text: newText,
-      parse_mode: "HTML"
-    });
-
-  } catch (error) {
-    console.error("Webhook database error:", error.message);
-
-    try {
-      await telegramCall(env, "answerCallbackQuery", {
-        callback_query_id: callback.id,
-        text: "Не вдалося оновити статус.",
-        show_alert: true
-      });
-    } catch (telegramError) {
-      console.error("Telegram callback error:", telegramError.message);
-    }
-  }
-
-  return json({ ok: true });
-}
-
-/* -------------------- HEALTH CHECK -------------------- */
-
-async function healthCheck(env) {
-  try {
-    await env.DB.prepare("SELECT 1").first();
-
-    return json({
-      ok: true,
-      service: "Tanuki Shop",
-      database: "connected"
-    });
-  } catch (error) {
-    console.error("Health check error:", error.message);
-
-    return json({
-      ok: false,
-      service: "Tanuki Shop",
-      database: "error"
-    }, 503);
-  }
-}
-
-/* -------------------- CREATE ORDER -------------------- */
-
-async function createOrder(request, env) {
-  const body = await readJson(request);
-
-  if (!body || typeof body !== "object") {
-    return json({
-      ok: false,
-      error: "Некоректні дані замовлення."
-    }, 400);
-  }
-
-  // Приймаємо і camelCase з index.html, і snake_case.
-  const customerName = cleanText(
-    body.customerName || body.customer_name || body.name,
-    120
-  );
-
-  const customerPhone = cleanText(
-    body.customerPhone || body.customer_phone || body.phone,
-    50
-  );
-
-  const customerCity = cleanText(
-    body.customerCity || body.customer_city || body.city,
-    120
-  );
-
-  const customerAddress = cleanText(
-    body.customerAddress || body.customer_address || body.address,
-    300
-  );
-
-  const customerComment = cleanText(
-    body.customerComment || body.customer_comment || body.comment,
-    1000
-  );
-
-  if (
-    !customerName ||
-    !customerPhone ||
-    !customerCity ||
-    !customerAddress
-  ) {
-    return json({
-      ok: false,
-      error: "Заповніть ім'я, телефон, місто та адресу."
-    }, 400);
-  }
-
-  if (!Array.isArray(body.items) || body.items.length === 0) {
-    return json({
-      ok: false,
-      error: "Кошик порожній."
-    }, 400);
-  }
-
-  if (body.items.length > 30) {
-    return json({
-      ok: false,
-      error: "Забагато позицій у замовленні."
-    }, 400);
-  }
-
-  const orderItems = [];
-  let totalAmount = 0;
-
-  for (const item of body.items) {
-    const productId = cleanText(item?.id, 100);
-    const quantity = Number(item?.quantity);
-    const product = PRODUCTS[productId];
-
-    if (!product) {
-      return json({
-        ok: false,
-        error: "Один із товарів більше недоступний."
-      }, 400);
-    }
-
-    if (
-      !Number.isSafeInteger(quantity) ||
-      quantity < 1 ||
-      quantity > 99
-    ) {
-      return json({
-        ok: false,
-        error: "Некоректна кількість товару."
-      }, 400);
-    }
-
-    const lineTotal = product.price * quantity;
-
-    if (!Number.isSafeInteger(lineTotal)) {
-      return json({
-        ok: false,
-        error: "Некоректна сума замовлення."
-      }, 400);
-    }
-
-    totalAmount += lineTotal;
-
-    orderItems.push({
-      id: productId,
-      name: product.name,
-      price: product.price,
-      quantity
-    });
-  }
-
-  if (!Number.isSafeInteger(totalAmount) || totalAmount <= 0) {
-    return json({
-      ok: false,
-      error: "Некоректна сума замовлення."
-    }, 400);
-  }
-
-  const orderNumber = generateOrderNumber();
-
-  try {
-    const insertOrder = await env.DB.prepare(`
-      INSERT INTO orders (
-        order_number,
-        customer_name,
-        customer_phone,
-        customer_city,
-        customer_address,
-        customer_comment,
-        total_amount,
-        status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
-    `)
-      .bind(
-        orderNumber,
-        customerName,
-        customerPhone,
-        customerCity,
-        customerAddress,
-        customerComment,
-        totalAmount
-      )
-      .run();
-
-    const orderId = insertOrder.meta?.last_row_id;
-
-    if (!orderId) {
-      throw new Error("Не вдалося отримати ID замовлення.");
-    }
-
-    for (const item of orderItems) {
-      await env.DB.prepare(`
-        INSERT INTO order_items (
-          order_id,
-          product_id,
-          product_name,
-          price,
-          quantity
-        )
-        VALUES (?, ?, ?, ?, ?)
-      `)
-        .bind(
-          orderId,
-          item.id,
-          item.name,
-          item.price,
-          item.quantity
-        )
-        .run();
-    }
-
-    const order = {
-      id: orderId,
-      orderNumber,
-      customerName,
-      customerPhone,
-      customerCity,
-      customerAddress,
-      customerComment,
-      total: totalAmount,
-      items: orderItems
-    };
-
-    // Сповіщення виконується після збереження замовлення.
-    // Помилка Telegram не скасовує успішне замовлення.
-    await notifyTelegram(env, order);
-
-    return json({
-      ok: true,
-      order_id: orderId,
-      order_number: orderNumber,
-      total_amount: totalAmount,
-
-      // Поля, які використовує твій index.html:
-      orderNumber,
-      total: totalAmount,
-
-      message: "Замовлення успішно оформлено!"
-    }, 201);
-
-  } catch (error) {
-    console.error("Create order error:", error.message);
-
-    return json({
-      ok: false,
-      error: "Не вдалося зберегти замовлення. Спробуйте ще раз."
-    }, 500);
-  }
-}
-
-/* -------------------- ADMIN API -------------------- */
-
-async function adminLogin(request, env) {
-  if (!env.ADMIN_PASSWORD) {
-    return json({
-      ok: false,
-      error: "Пароль адміністратора не налаштований."
-    }, 500);
-  }
-
-  const body = await readJson(request);
-  const password = cleanText(body?.password, 500);
-
-  if (!password || password !== env.ADMIN_PASSWORD) {
-    return json({
-      ok: false,
-      error: "Неправильний пароль."
-    }, 401);
-  }
-
-  const session = await createAdminSession(env.ADMIN_PASSWORD);
-
-  return json({
-    ok: true,
-    message: "Вхід успішний."
-  }, 200, {
-    "Set-Cookie": adminCookie(session)
-  });
-}
-
-async function adminLogout() {
-  return json({
-    ok: true,
-    message: "Ви вийшли з панелі."
-  }, 200, {
-    "Set-Cookie": adminCookie("", 0)
-  });
-}
-
-async function adminGetOrders(env) {
-  try {
-    const orders = await env.DB.prepare(`
-      SELECT
-        id,
-        order_number,
-        customer_name,
-        customer_phone,
-        customer_city,
-        customer_address,
-        customer_comment,
-        total_amount,
-        status,
-        created_at
-      FROM orders
-      ORDER BY id DESC
-      LIMIT 200
-    `).all();
-
-    const result = [];
-
-    for (const order of orders.results || []) {
-      const items = await env.DB.prepare(`
-        SELECT
-          product_id,
-          product_name,
-          price,
-          quantity
-        FROM order_items
-        WHERE order_id = ?
-      `)
-        .bind(order.id)
-        .all();
-
-      result.push({
-        ...order,
-        items: items.results || []
-      });
-    }
-
-    return json({
-      ok: true,
-      orders: result
-    });
-
-  } catch (error) {
-    console.error("Admin orders error:", error.message);
-
-    return json({
-      ok: false,
-      error: "Не вдалося завантажити замовлення."
-    }, 500);
-  }
-}
-
-async function adminUpdateOrder(request, env, orderId) {
-  const body = await readJson(request);
-  const status = cleanText(body?.status, 30);
-
-  if (!ORDER_STATUSES.includes(status)) {
-    return json({
-      ok: false,
-      error: "Невідомий статус замовлення."
-    }, 400);
-  }
-
-  try {
-    const result = await env.DB.prepare(
-      "UPDATE orders SET status = ? WHERE id = ?"
-    )
-      .bind(status, orderId)
-      .run();
-
-    if (!result.meta?.changes) {
-      return json({
-        ok: false,
-        error: "Замовлення не знайдено."
-      }, 404);
-    }
-
-    return json({
-      ok: true,
-      status,
-      status_label: STATUS_LABELS[status]
-    });
-
-  } catch (error) {
-    console.error("Admin update error:", error.message);
-
-    return json({
-      ok: false,
-      error: "Не вдалося оновити статус."
-    }, 500);
-  }
-}
-
-/* -------------------- ROUTER -------------------- */
-
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    const method = request.method.toUpperCase();
-
-    try {
-      // Перевірка роботи сервера та бази даних.
-      if (path === "/api/health" && method === "GET") {
-        return healthCheck(env);
-      }
-
-      // Telegram webhook: GET для перевірки адреси.
-      if (path === "/api/telegram/webhook" && method === "GET") {
-        return json({
-          ok: true,
-          endpoint: "Tanuki Shop Telegram webhook",
-          method: "POST",
-          note: "Telegram надсилає оновлення сюди автоматично."
-        });
-      }
-
-      // Telegram webhook: POST від Telegram.
-      if (path === "/api/telegram/webhook" && method === "POST") {
-        return handleTelegramWebhook(request, env);
-      }
-
-      if (path === "/api/telegram/webhook") {
-        return json({
-          ok: false,
-          error: "Method not allowed."
-        }, 405, {
-          Allow: "GET, POST"
-        });
-      }
-
-      // Оформлення замовлення.
-      if (path === "/api/orders" && method === "POST") {
-        return createOrder(request, env);
-      }
-
-      // Адміністративний вхід.
-      if (path === "/api/admin/login" && method === "POST") {
-        return adminLogin(request, env);
-      }
-
-      // Вихід адміністратора.
-      if (path === "/api/admin/logout" && method === "POST") {
-        return adminLogout();
-      }
-
-      // Перевірка авторизації адміністратора.
-      if (
-        path === "/api/admin/me" ||
-        path === "/api/admin/session"
-      ) {
-        if (method !== "GET") {
-          return json({
-            ok: false,
-            error: "Method not allowed."
-          }, 405);
-        }
-
-        const authorized = await requireAdmin(request, env);
-
-        return json({
-          ok: true,
-          authenticated: authorized
-        });
-      }
-
-      // Усі інші адміністративні маршрути потребують входу.
-      if (path.startsWith("/api/admin/")) {
-        const authorized = await requireAdmin(request, env);
-
-        if (!authorized) {
-          return json({
-            ok: false,
-            error: "Потрібно увійти як адміністратор."
-          }, 401);
-        }
-
-        if (
-          path === "/api/admin/orders" &&
-          method === "GET"
-        ) {
-          return adminGetOrders(env);
-        }
-
-        // Підтримуємо обидва варіанти:
-        // PATCH /api/admin/orders/123
-        // PATCH /api/admin/orders/123/status
-        const statusMatch = path.match(
-          /^\/api\/admin\/orders\/(\d+)(?:\/status)?$/
-        );
-
-        if (statusMatch && method === "PATCH") {
-          return adminUpdateOrder(
-            request,
-            env,
-            Number(statusMatch[1])
-          );
-        }
-
-        return json({
-          ok: false,
-          error: "Admin API endpoint not found."
-        }, 404);
-      }
-
-      // Статичні файли сайту.
-      if (env.ASSETS) {
-        return env.ASSETS.fetch(request);
-      }
-
-      return json({
-        ok: false,
-        error: "Not found."
-      }, 404);
-
-    } catch (error) {
-      console.error("Worker error:", error.message);
-
-      return json({
-        ok: false,
-        error: "Внутрішня помилка сервера."
-      }, 500);
-    }
-  }
-};
+<!DOCTYPE html>  <html lang="uk">  
+<head>  
+  <meta charset="UTF-8">  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">  
+  <title>Tanuki Shop — Kawaii & Anime Store</title>  
+  <meta name="description" content="Tanuki Shop — магазин kawaii та anime товарів.">  
+  <link rel="stylesheet" href="style.css">  
+</head>  
+<body>  <header class="site-header">  
+  <div class="container header-inner">  
+    <a href="#" class="logo">🦝 <span>Tanuki Shop</span></a>  
+    <nav class="main-nav">  
+      <a href="#catalog">Каталог</a>  
+      <a href="#new">Новинки</a>  
+      <a href="#about">Про нас</a>  
+    </nav>  
+    <button class="cart-button" id="cartButton" type="button">  
+      🛒 Кошик <span id="cartCount">0</span>  
+    </button>  
+  </div>  
+</header>  <main>  
+  <section class="hero">  
+    <div class="container hero-content">  
+      <div class="hero-text">  
+        <span class="hero-badge">✨ Kawaii • Anime • Gifts</span>  
+        <h1>Ласкаво просимо до <span>Tanuki Shop</span></h1>  
+        <p>  
+          Kawaii та anime товари, аксесуари,  
+          плюшеві іграшки та милі подарунки  
+          для тих, хто любить японську культуру.  
+        </p>  
+        <a href="#catalog" class="hero-button">Перейти до каталогу →</a>  
+      </div>  
+      <div class="hero-character">🦝</div>  
+    </div>  
+  </section>    <section class="categories" id="new">  
+    <div class="container">  
+      <div class="section-heading">  
+        <span>🌸</span>  
+        <h2>Категорії</h2>  
+      </div>  
+      <div class="category-grid">  
+        <button class="category-card" type="button">  
+          🎀 <strong>Аксесуари</strong><span>Милі деталі</span>  
+        </button>  
+        <button class="category-card" type="button">  
+          🧸 <strong>Плюшеві іграшки</strong><span>Kawaii друзі</span>  
+        </button>  
+        <button class="category-card" type="button">  
+          👕 <strong>Одяг</strong><span>Anime style</span>  
+        </button>  
+        <button class="category-card" type="button">  
+          🎁 <strong>Подарунки</strong><span>Для друзів</span>  
+        </button>  
+      </div>  
+    </div>  
+  </section>    <section class="products-section" id="catalog">  
+    <div class="container">  
+      <div class="section-heading">  
+        <span>🛍️</span>  
+        <h2>Популярні товари</h2>  
+      </div>  <div class="products-grid">  
+
+    <article class="product-card"  
+      data-id="tanuki-plush"  
+      data-name="Tanuki Plush"  
+      data-price="499">  
+      <div class="product-image">🦝</div>  
+      <div class="product-info">  
+        <span class="product-category">Плюшеві іграшки</span>  
+        <h3>Tanuki Plush</h3>  
+        <p>Милий плюшевий танукі для колекції або подарунка.</p>  
+        <div class="product-bottom">  
+          <strong class="product-price">499 ₴</strong>  
+          <button class="add-button" type="button"  
+            onclick="addToCart('tanuki-plush', 'Tanuki Plush', 499, '🦝')">  
+            Додати  
+          </button>  
+        </div>  
+      </div>  
+    </article>  
+
+    <article class="product-card"  
+      data-id="kawaii-stickers"  
+      data-name="Kawaii Sticker Pack"  
+      data-price="149">  
+      <div class="product-image">🌸</div>  
+      <div class="product-info">  
+        <span class="product-category">Аксесуари</span>  
+        <h3>Kawaii Sticker Pack</h3>  
+        <p>Набір милих стікерів у kawaii стилі.</p>  
+        <div class="product-bottom">  
+          <strong class="product-price">149 ₴</strong>  
+          <button class="add-button" type="button"  
+            onclick="addToCart('kawaii-stickers', 'Kawaii Sticker Pack', 149, '🌸')">  
+            Додати  
+          </button>  
+        </div>  
+      </div>  
+    </article>  
+
+    <article class="product-card"  
+      data-id="kawaii-accessory"  
+      data-name="Kawaii Accessory"  
+      data-price="299">  
+      <div class="product-image">🎀</div>  
+      <div class="product-info">  
+        <span class="product-category">Аксесуари</span>  
+        <h3>Kawaii Accessory</h3>  
+        <p>Стильний kawaii аксесуар для повсякденного образу.</p>  
+        <div class="product-bottom">  
+          <strong class="product-price">299 ₴</strong>  
+          <button class="add-button" type="button"  
+            onclick="addToCart('kawaii-accessory', 'Kawaii Accessory', 299, '🎀')">  
+            Додати  
+          </button>  
+        </div>  
+      </div>  
+    </article>  
+
+  </div>  
+</div>
+
+  </section>    <section class="about-section" id="about">  
+    <div class="container about-content">  
+      <div class="about-icon">🦝</div>  
+      <div>  
+        <span class="hero-badge">Про Tanuki Shop</span>  
+        <h2>Маленький магазин з великим kawaii настроєм 💖</h2>  
+        <p>  
+          Tanuki Shop створений для людей,  
+          які люблять anime, kawaii-культуру та милі речі.  
+        </p>  
+        <p>  
+          Ми поступово розширюватимемо каталог,  
+          додаватимемо нові товари, способи оплати та доставку.  
+        </p>  
+      </div>  
+    </div>  
+  </section>  
+</main>  <footer class="site-footer">  
+  <div class="container footer-inner">  
+    <div>  
+      <strong>🦝 Tanuki Shop</strong>  
+      <p>Kawaii & Anime Store</p>  
+    </div>  
+    <div>  
+      <p>© 2026 Tanuki Shop</p>  
+    </div>  
+  </div>  
+</footer>  <!-- CART MODAL -->  <div id="cartModal" class="cart-modal" aria-hidden="true">  
+  <div class="cart-overlay" id="cartOverlay"></div>  
+  <div class="cart-window">  
+    <div class="cart-header">  
+      <h2>🛒 Ваш кошик</h2>  
+      <button id="closeCart" type="button" aria-label="Закрити кошик">✕</button>  
+    </div>  <div id="cartItems" class="cart-items"></div>  
+
+<div id="emptyCart" class="empty-cart">  
+  🦝  
+  <h3>Кошик порожній</h3>  
+  <p>Додайте щось kawaii з каталогу 💖</p>  
+</div>  
+
+<div id="cartFooter" class="cart-footer">  
+  <div class="cart-total">  
+    <span>Разом:</span>  
+    <strong id="cartTotal">0 ₴</strong>  
+  </div>  
+  <button id="clearCart" class="clear-cart" type="button">  
+    🗑️ Очистити кошик  
+  </button>  
+  <button id="checkoutButton" class="checkout-button" type="button">  
+    📦 Оформити замовлення  
+  </button>  
+</div>
+
+  </div>  
+</div>  <!-- CHECKOUT MODAL -->  <div id="checkoutModal" class="checkout-modal" aria-hidden="true">  
+  <div class="checkout-overlay" id="checkoutOverlay"></div>  
+  <div class="checkout-window">  
+    <div class="checkout-header">  
+      <h2>📦 Оформлення замовлення</h2>  
+      <button id="closeCheckout" type="button" aria-label="Закрити">✕</button>  
+    </div>  <form id="checkoutForm">  
+  <label>  
+    Ваше ім'я  
+    <input type="text" id="customerName" required  
+      placeholder="Наприклад: Сашко" autocomplete="name">  
+  </label>  
+
+  <label>  
+    Номер телефону  
+    <input type="tel" id="customerPhone" required  
+      placeholder="+380..." autocomplete="tel">  
+  </label>  
+
+  <label>  
+    Місто  
+    <input type="text" id="customerCity" required  
+      placeholder="Ваше місто" autocomplete="address-level2">  
+  </label>  
+
+  <label>  
+    Адреса / відділення  
+    <input type="text" id="customerAddress" required  
+      placeholder="Номер відділення або адреса">  
+  </label>  
+
+  <label>  
+    Коментар до замовлення  
+    <textarea id="customerComment" rows="4"  
+      placeholder="Наприклад: зателефонуйте перед відправкою"></textarea>  
+  </label>  
+
+  <div class="checkout-summary">  
+    <span>Сума замовлення:</span>  
+    <strong id="checkoutTotal">0 ₴</strong>  
+  </div>  
+
+  <button type="submit" class="checkout-submit">  
+    ✅ Підтвердити замовлення  
+  </button>  
+</form>
+
+  </div>  
+</div>  <!-- KEYCRM CHAT -->  <script>  
+(function(w, d, t, u, c) {  
+  var s = d.createElement(t);  
+  var j = d.getElementsByTagName(t)[0];  
+  
+  s.src = u;  
+  s.async = true;  
+  s.defer = true;  
+  
+  s.onload = function() {  
+    if (w.KeyCRM && typeof w.KeyCRM.render === "function") {  
+      w.KeyCRM.render(c);  
+    }  
+  };  
+  
+  j.parentNode.insertBefore(s, j);  
+})(  
+  window,  
+  document,  
+  "script",  
+  "https://chat.key.live/bundles/widget.min.js",  
+  {  
+    token: "CURRENT_KEYCRM_TOKEN"  
+  }  
+);  
+</script>  <!-- STORE SCRIPT -->  <script>  
+"use strict";  
+  
+let cart = [];  
+  
+try {  
+  const savedCart = localStorage.getItem("tanukiShopCart");  
+  if (savedCart) {  
+    const parsed = JSON.parse(savedCart);  
+  
+    if (Array.isArray(parsed)) {  
+      cart = parsed.filter(function(item) {  
+        return item &&  
+          typeof item.id === "string" &&  
+          typeof item.name === "string" &&  
+          Number.isSafeInteger(item.price) &&  
+          item.price >= 0 &&  
+          Number.isSafeInteger(item.quantity) &&  
+          item.quantity > 0 &&  
+          item.quantity <= 99 &&  
+          typeof item.icon === "string";  
+      });  
+    }  
+  }  
+} catch (error) {  
+  console.error("Не вдалося завантажити кошик:", error);  
+  cart = [];  
+}  
+  
+const cartButton = document.getElementById("cartButton");  
+const cartCount = document.getElementById("cartCount");  
+const cartModal = document.getElementById("cartModal");  
+const cartOverlay = document.getElementById("cartOverlay");  
+const closeCart = document.getElementById("closeCart");  
+const cartItems = document.getElementById("cartItems");  
+const emptyCart = document.getElementById("emptyCart");  
+const cartFooter = document.getElementById("cartFooter");  
+const cartTotal = document.getElementById("cartTotal");  
+const clearCart = document.getElementById("clearCart");  
+const checkoutButton = document.getElementById("checkoutButton");  
+  
+const checkoutModal = document.getElementById("checkoutModal");  
+const checkoutOverlay = document.getElementById("checkoutOverlay");  
+const closeCheckout = document.getElementById("closeCheckout");  
+const checkoutForm = document.getElementById("checkoutForm");  
+const checkoutTotal = document.getElementById("checkoutTotal");  
+  
+function saveCart() {  
+  try {  
+    localStorage.setItem("tanukiShopCart", JSON.stringify(cart));  
+  } catch (error) {  
+    console.error("Не вдалося зберегти кошик:", error);  
+    alert("Не вдалося зберегти кошик на цьому пристрої.");  
+  }  
+}  
+  
+function formatPrice(price) {  
+  return new Intl.NumberFormat("uk-UA").format(price) + " ₴";  
+}  
+  
+function updateCartCount() {  
+  const totalQuantity = cart.reduce(function(total, item) {  
+    return total + item.quantity;  
+  }, 0);  
+  
+  cartCount.textContent = totalQuantity;  
+}  
+  
+function addToCart(id, name, price, icon) {  
+  const existingItem = cart.find(function(item) {  
+    return item.id === id;  
+  });  
+  
+  if (existingItem) {  
+    if (existingItem.quantity >= 99) {  
+      alert("Максимальна кількість одного товару — 99.");  
+      return;  
+    }  
+    existingItem.quantity++;  
+  } else {  
+    cart.push({  
+      id: id,  
+      name: name,  
+      price: price,  
+      icon: icon,  
+      quantity: 1  
+    });  
+  }  
+  
+  saveCart();  
+  updateCartCount();  
+  renderCart();  
+  
+  const buttons = document.querySelectorAll(".add-button");  
+  
+  buttons.forEach(function(button) {  
+    if (button.getAttribute("onclick") &&  
+        button.getAttribute("onclick").includes(id)) {  
+      const originalText = button.textContent;  
+      button.textContent = "✓ Додано";  
+  
+      setTimeout(function() {  
+        button.textContent = originalText;  
+      }, 1000);  
+    }  
+  });  
+}  
+  
+function removeFromCart(id) {  
+  cart = cart.filter(function(item) {  
+    return item.id !== id;  
+  });  
+  
+  saveCart();  
+  updateCartCount();  
+  renderCart();  
+}  
+  
+function changeQuantity(id, amount) {  
+  const item = cart.find(function(item) {  
+    return item.id === id;  
+  });  
+  
+  if (!item) return;  
+  
+  item.quantity += amount;  
+  
+  if (item.quantity <= 0) {  
+    removeFromCart(id);  
+    return;  
+  }  
+  
+  if (item.quantity > 99) {  
+    item.quantity = 99;  
+    alert("Максимальна кількість одного товару — 99.");  
+  }  
+  
+  saveCart();  
+  updateCartCount();  
+  renderCart();  
+}  
+  
+function getCartTotal() {  
+  return cart.reduce(function(total, item) {  
+    return total + item.price * item.quantity;  
+  }, 0);  
+}  
+  
+function escapeHtml(value) {  
+  const div = document.createElement("div");  
+  div.textContent = String(value);  
+  return div.innerHTML;  
+}  
+  
+function renderCart() {  
+  updateCartCount();  
+  
+  if (cart.length === 0) {  
+    cartItems.innerHTML = "";  
+    emptyCart.style.display = "block";  
+    cartFooter.style.display = "none";  
+    return;  
+  }  
+  
+  emptyCart.style.display = "none";  
+  cartFooter.style.display = "block";  
+  cartItems.innerHTML = "";  
+  
+  cart.forEach(function(item) {  
+    const itemElement = document.createElement("div");  
+    itemElement.className = "cart-item";  
+  
+    itemElement.innerHTML = `  
+      <div class="cart-item-icon">${escapeHtml(item.icon)}</div>  
+      <div class="cart-item-info">  
+        <h3>${escapeHtml(item.name)}</h3>  
+        <strong>${formatPrice(item.price)}</strong>  
+      </div>  
+      <div class="cart-item-controls">  
+        <button type="button"  
+          onclick="changeQuantity('${escapeHtml(item.id)}', -1)"  
+          aria-label="Зменшити кількість">−</button>  
+        <span>${item.quantity}</span>  
+        <button type="button"  
+          onclick="changeQuantity('${escapeHtml(item.id)}', 1)"  
+          aria-label="Збільшити кількість">+</button>  
+      </div>  
+      <button class="remove-item" type="button"  
+        onclick="removeFromCart('${escapeHtml(item.id)}')"  
+        aria-label="Видалити товар">🗑️</button>  
+    `;  
+  
+    cartItems.appendChild(itemElement);  
+  });  
+  
+  const total = getCartTotal();  
+  cartTotal.textContent = formatPrice(total);  
+  checkoutTotal.textContent = formatPrice(total);  
+}  
+  
+function openCart() {  
+  cartModal.classList.add("active");  
+  cartModal.setAttribute("aria-hidden", "false");  
+  document.body.style.overflow = "hidden";  
+  renderCart();  
+}  
+  
+function closeCartWindow() {  
+  cartModal.classList.remove("active");  
+  cartModal.setAttribute("aria-hidden", "true");  
+  document.body.style.overflow = "";  
+}  
+  
+function openCheckout() {  
+  if (cart.length === 0) {  
+    alert("🛒 Спочатку додайте товар у кошик.");  
+    return;  
+  }  
+  
+  closeCartWindow();  
+  
+  checkoutModal.classList.add("active");  
+  checkoutModal.setAttribute("aria-hidden", "false");  
+  document.body.style.overflow = "hidden";  
+  
+  checkoutTotal.textContent = formatPrice(getCartTotal());  
+}  
+  
+function closeCheckoutWindow() {  
+  checkoutModal.classList.remove("active");  
+  checkoutModal.setAttribute("aria-hidden", "true");  
+  document.body.style.overflow = "";  
+}  
+  
+clearCart.addEventListener("click", function() {  
+  if (cart.length === 0) return;  
+  
+  if (!confirm("Очистити весь кошик?")) return;  
+  
+  cart = [];  
+  saveCart();  
+  updateCartCount();  
+  renderCart();  
+});  
+  
+cartButton.addEventListener("click", openCart);  
+closeCart.addEventListener("click", closeCartWindow);  
+cartOverlay.addEventListener("click", closeCartWindow);  
+  
+checkoutButton.addEventListener("click", openCheckout);  
+closeCheckout.addEventListener("click", closeCheckoutWindow);  
+checkoutOverlay.addEventListener("click", closeCheckoutWindow);  
+  
+/*  
+  REAL ORDER SUBMISSION  
+  Orders are sent to Cloudflare Worker API.  
+*/  
+  
+checkoutForm.addEventListener("submit", async function(event) {  
+  event.preventDefault();  
+  
+  if (cart.length === 0) {  
+    alert("🛒 Кошик порожній.");  
+    return;  
+  }  
+  
+  const submitButton = checkoutForm.querySelector(  
+    'button[type="submit"]'  
+  );  
+  
+  const customerName = document.getElementById("customerName").value.trim();  
+  const customerPhone = document.getElementById("customerPhone").value.trim();  
+  const customerCity = document.getElementById("customerCity").value.trim();  
+  const customerAddress = document.getElementById("customerAddress").value.trim();  
+  const customerComment = document.getElementById("customerComment").value.trim();  
+  
+  const originalButtonText = submitButton.textContent;  
+  
+  submitButton.disabled = true;  
+  submitButton.textContent = "⏳ Надсилаємо замовлення...";  
+  
+  try {  
+    const response = await fetch("/api/orders", {  
+      method: "POST",  
+      headers: {  
+        "Content-Type": "application/json"  
+      },  
+      body: JSON.stringify({  
+        customerName: customerName,  
+        customerPhone: customerPhone,  
+        customerCity: customerCity,  
+        customerAddress: customerAddress,  
+        customerComment: customerComment,  
+        items: cart.map(function(item) {  
+          return {  
+            id: item.id,  
+            quantity: item.quantity  
+          };  
+        })  
+      })  
+    });  
+  
+    let data;  
+  
+    try {  
+      data = await response.json();  
+    } catch {  
+      throw new Error("Сервер повернув некоректну відповідь.");  
+    }  
+  
+    if (!response.ok || !data.ok) {  
+      throw new Error(  
+        data.error || "Не вдалося оформити замовлення."  
+      );  
+    }  
+  
+    alert(  
+      "🎉 Замовлення успішно оформлено!\n\n" +  
+      "🧾 Номер: " + data.orderNumber + "\n\n" +  
+      "💰 Сума: " + formatPrice(data.total) + "\n\n" +  
+      "Дякуємо за замовлення! 🦝💖"  
+    );  
+  
+    cart = [];  
+    saveCart();  
+    updateCartCount();  
+    renderCart();  
+  
+    checkoutForm.reset();  
+    closeCheckoutWindow();  
+  
+  } catch (error) {  
+    console.error("Помилка оформлення замовлення:", error);  
+  
+    alert(  
+      "❌ Не вдалося оформити замовлення.\n\n" +  
+      (error.message || "Перевірте інтернет і спробуйте ще раз.") +  
+      "\n\nВаш кошик збережено."  
+    );  
+  
+  } finally {  
+    submitButton.disabled = false;  
+    submitButton.textContent = originalButtonText;  
+  }  
+});  
+  
+document.addEventListener("keydown", function(event) {  
+  if (event.key !== "Escape") return;  
+  
+  if (cartModal.classList.contains("active")) {  
+    closeCartWindow();  
+  }  
+  
+  if (checkoutModal.classList.contains("active")) {  
+    closeCheckoutWindow();  
+  }  
+});  
+  
+renderCart();  
+</script>  </body>  
+</html>
