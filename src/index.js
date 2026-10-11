@@ -39,8 +39,85 @@ function cleanText(value, maxLength = 300) {
   return value.trim().slice(0, maxLength);
 }
 
+// ================================
+// TELEGRAM NOTIFICATIONS
+// ================================
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>"']/g, char => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  })[char]);
+}
+
+async function notifyTelegram(env, order) {
+  const token = env.TELEGRAM_BOT_TOKEN;
+  const chatId = env.TELEGRAM_CHAT_ID;
+
+  if (!token || !chatId) {
+    console.error("Telegram secrets are missing");
+    return;
+  }
+
+  const productLines = order.items.map(item =>
+    `• ${escapeHtml(item.name)} × ${item.quantity} — ${item.price * item.quantity} ₴`
+  );
+
+  const message = [
+    "🛍️ <b>Нове замовлення Tanuki Shop!</b>",
+    "",
+    `<b>Номер:</b> ${escapeHtml(order.orderNumber)}`,
+    `<b>Покупець:</b> ${escapeHtml(order.customerName)}`,
+    `<b>Телефон:</b> ${escapeHtml(order.customerPhone)}`,
+    `<b>Місто:</b> ${escapeHtml(order.customerCity)}`,
+    `<b>Адреса:</b> ${escapeHtml(order.customerAddress)}`,
+    "",
+    "<b>Товари:</b>",
+    ...productLines,
+    "",
+    `<b>Сума:</b> ${order.total} ₴`,
+    `<b>Коментар:</b> ${escapeHtml(order.customerComment || "Немає")}`
+  ].join("\n");
+
+  try {
+    const response = await fetch(
+      `https://api.telegram.org/bot${token}/sendMessage`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: "HTML"
+        }),
+        signal: AbortSignal.timeout(8000)
+      }
+    );
+
+    if (!response.ok) {
+      console.error(
+        "Telegram notification failed:",
+        response.status,
+        await response.text()
+      );
+    }
+  } catch (error) {
+    console.error("Telegram notification error:", error);
+  }
+}
+
+// ================================
+// ADMIN SESSION
+// ================================
+
 function base64UrlEncode(bytes) {
   let binary = "";
+
   for (const byte of bytes) {
     binary += String.fromCharCode(byte);
   }
@@ -49,20 +126,6 @@ function base64UrlEncode(bytes) {
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
     .replace(/=+$/g, "");
-}
-
-function base64UrlDecode(value) {
-  const base64 = value
-    .replace(/-/g, "+")
-    .replace(/_/g, "/");
-
-  const padded = base64.padEnd(
-    Math.ceil(base64.length / 4) * 4,
-    "="
-  );
-
-  const binary = atob(padded);
-  return Uint8Array.from(binary, char => char.charCodeAt(0));
 }
 
 async function signSession(value, secret) {
@@ -94,8 +157,7 @@ function constantTimeEqual(a, b) {
   const length = Math.max(left.length, right.length);
 
   for (let i = 0; i < length; i++) {
-    difference |=
-      (left[i] || 0) ^ (right[i] || 0);
+    difference |= (left[i] || 0) ^ (right[i] || 0);
   }
 
   return difference === 0;
@@ -106,6 +168,7 @@ function getCookie(request, name) {
 
   for (const part of cookieHeader.split(";")) {
     const separator = part.indexOf("=");
+
     if (separator === -1) continue;
 
     const key = part.slice(0, separator).trim();
@@ -129,7 +192,11 @@ async function createSession(secret) {
 async function verifySession(request, secret) {
   if (!secret) return false;
 
-  const token = getCookie(request, "tanuki_admin_session");
+  const token = getCookie(
+    request,
+    "tanuki_admin_session"
+  );
+
   const parts = token.split(".");
 
   if (parts.length !== 3) return false;
@@ -148,16 +215,22 @@ async function verifySession(request, secret) {
     return false;
   }
 
-  const payload = `${timestampText}.${nonce}`;
-
   try {
-    const expected = await signSession(payload, secret);
+    const expected = await signSession(
+      `${timestampText}.${nonce}`,
+      secret
+    );
+
     return constantTimeEqual(signature, expected);
   } catch (error) {
     console.error("Session verification error:", error);
     return false;
   }
 }
+
+// ================================
+// CREATE ORDER
+// ================================
 
 async function createOrder(request, env) {
   let body;
@@ -299,6 +372,19 @@ async function createOrder(request, env) {
 
     await env.DB.batch(statements);
 
+    // Send Telegram notification.
+    // Telegram failure does not cancel the saved order.
+    await notifyTelegram(env, {
+      orderNumber,
+      customerName,
+      customerPhone,
+      customerCity,
+      customerAddress,
+      customerComment,
+      total,
+      items
+    });
+
     return json({
       ok: true,
       orderNumber,
@@ -325,6 +411,10 @@ async function createOrder(request, env) {
     }, 500);
   }
 }
+
+// ================================
+// ADMIN API
+// ================================
 
 async function handleAdmin(request, env, url) {
   const path = url.pathname;
@@ -384,7 +474,10 @@ async function handleAdmin(request, env, url) {
   }
 
   if (path === "/api/admin/me" && method === "GET") {
-    const authenticated = await verifySession(request, secret);
+    const authenticated = await verifySession(
+      request,
+      secret
+    );
 
     return json({
       ok: true,
@@ -392,7 +485,10 @@ async function handleAdmin(request, env, url) {
     });
   }
 
-  const authenticated = await verifySession(request, secret);
+  const authenticated = await verifySession(
+    request,
+    secret
+  );
 
   if (!authenticated) {
     return json({
@@ -441,7 +537,9 @@ async function handleAdmin(request, env, url) {
         FROM order_items
         WHERE order_id IN (${placeholders})
         ORDER BY id ASC
-      `).bind(...orders.map(order => order.id)).all();
+      `).bind(
+        ...orders.map(order => order.id)
+      ).all();
 
       const itemsByOrder = {};
 
@@ -548,6 +646,10 @@ async function handleAdmin(request, env, url) {
   }, 404);
 }
 
+// ================================
+// MAIN WORKER
+// ================================
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -564,14 +666,20 @@ export default {
        url.pathname === "/admin/") &&
       request.method === "GET"
     ) {
-      const adminUrl = new URL("/admin/index.html", url);
+      const adminUrl = new URL(
+        "/admin/index.html",
+        url
+      );
 
       return env.ASSETS.fetch(
         new Request(adminUrl, request)
       );
     }
 
-    if (url.pathname === "/api/health" && request.method === "GET") {
+    if (
+      url.pathname === "/api/health" &&
+      request.method === "GET"
+    ) {
       return json({
         ok: true,
         service: "Tanuki Shop",
@@ -579,7 +687,10 @@ export default {
       });
     }
 
-    if (url.pathname === "/api/orders" && request.method === "POST") {
+    if (
+      url.pathname === "/api/orders" &&
+      request.method === "POST"
+    ) {
       return createOrder(request, env);
     }
 
