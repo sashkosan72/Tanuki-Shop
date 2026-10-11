@@ -21,6 +21,10 @@ const TELEGRAM_STATUS = {
   cancelled: "Скасовано"
 };
 
+// ================================
+// HELPERS
+// ================================
+
 function json(data, status = 200, headers = {}) {
   return Response.json(data, {
     status,
@@ -59,7 +63,9 @@ async function telegramCall(env, method, data) {
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(data),
       signal: AbortSignal.timeout(10000)
     }
@@ -183,6 +189,7 @@ async function handleTelegramWebhook(request, env) {
   const actualChat = String(callback.message?.chat?.id || "");
   const actualUser = String(callback.from?.id || "");
 
+  // Ця перевірка розрахована на приватний чат із ботом.
   if (
     !expectedChat ||
     actualChat !== expectedChat ||
@@ -371,3 +378,475 @@ async function verifySession(request, secret) {
 
   return constantTimeEqual(signature, expected);
 }
+
+// ================================
+// CREATE ORDER
+// ================================
+
+async function createOrder(request, env) {
+  let body;
+
+  try {
+    body = await request.json();
+  } catch {
+    return json({
+      ok: false,
+      error: "Некоректний формат запиту"
+    }, 400);
+  }
+
+  const customerName = cleanText(body.customerName, 100);
+  const customerPhone = cleanText(body.customerPhone, 40);
+  const customerCity = cleanText(body.customerCity, 100);
+  const customerAddress = cleanText(body.customerAddress, 200);
+  const customerComment = cleanText(body.customerComment, 1000);
+
+  if (
+    !customerName ||
+    !customerPhone ||
+    !customerCity ||
+    !customerAddress
+  ) {
+    return json({
+      ok: false,
+      error: "Заповніть усі обов'язкові поля"
+    }, 400);
+  }
+
+  if (!Array.isArray(body.items) || body.items.length === 0) {
+    return json({
+      ok: false,
+      error: "Кошик порожній"
+    }, 400);
+  }
+
+  if (body.items.length > 30) {
+    return json({
+      ok: false,
+      error: "Забагато різних товарів"
+    }, 400);
+  }
+
+  const items = [];
+  let total = 0;
+
+  for (const item of body.items) {
+    const product = PRODUCTS[item.id];
+    const quantity = Number(item.quantity);
+
+    if (
+      !product ||
+      !Number.isInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 50
+    ) {
+      return json({
+        ok: false,
+        error: "Некоректний товар або кількість"
+      }, 400);
+    }
+
+    total += product.price * quantity;
+
+    items.push({
+      id: item.id,
+      name: product.name,
+      price: product.price,
+      quantity
+    });
+  }
+
+  if (!Number.isSafeInteger(total) || total <= 0) {
+    return json({
+      ok: false,
+      error: "Некоректна сума замовлення"
+    }, 400);
+  }
+
+  const orderNumber =
+    "TS-" +
+    Date.now().toString(36).toUpperCase() +
+    "-" +
+    crypto.randomUUID().slice(0, 6).toUpperCase();
+
+  let orderId;
+
+  try {
+    const insertedOrder = await env.DB.prepare(`
+      INSERT INTO orders (
+        order_number,
+        customer_name,
+        customer_phone,
+        customer_city,
+        customer_address,
+        customer_comment,
+        total_amount,
+        status
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
+      RETURNING id
+    `).bind(
+      orderNumber,
+      customerName,
+      customerPhone,
+      customerCity,
+      customerAddress,
+      customerComment,
+      total
+    ).first();
+
+    if (!insertedOrder) {
+      throw new Error("Не вдалося створити замовлення");
+    }
+
+    orderId = insertedOrder.id;
+
+    const statements = items.map(item =>
+      env.DB.prepare(`
+        INSERT INTO order_items (
+          order_id,
+          product_id,
+          product_name,
+          price,
+          quantity
+        )
+        VALUES (?, ?, ?, ?, ?)
+      `).bind(
+        orderId,
+        item.id,
+        item.name,
+        item.price,
+        item.quantity
+      )
+    );
+
+    await env.DB.batch(statements);
+
+    await notifyTelegram(env, {
+      id: orderId,
+      orderNumber,
+      customerName,
+      customerPhone,
+      customerCity,
+      customerAddress,
+      customerComment,
+      total,
+      items
+    });
+
+    return json({
+      ok: true,
+      orderNumber,
+      total,
+      message: "Замовлення успішно збережено"
+    }, 201);
+  } catch (error) {
+    console.error("Order creation error:", error);
+
+    if (orderId) {
+      try {
+        await env.DB.prepare(
+          "DELETE FROM orders WHERE id = ?"
+        ).bind(orderId).run();
+      } catch (cleanupError) {
+        console.error("Order cleanup error:", cleanupError);
+      }
+    }
+
+    return json({
+      ok: false,
+      error: "Не вдалося зберегти замовлення"
+    }, 500);
+  }
+}
+
+// ================================
+// ADMIN API
+// ================================
+
+async function handleAdmin(request, env, url) {
+  const path = url.pathname;
+  const method = request.method;
+  const secret = env.ADMIN_PASSWORD;
+
+  if (!secret) {
+    return json({
+      ok: false,
+      error: "ADMIN_PASSWORD is not configured"
+    }, 500);
+  }
+
+  if (path === "/api/admin/login" && method === "POST") {
+    let body;
+
+    try {
+      body = await request.json();
+    } catch {
+      return json({
+        ok: false,
+        error: "Некоректний запит"
+      }, 400);
+    }
+
+    const password =
+      typeof body.password === "string"
+        ? body.password
+        : "";
+
+    if (!constantTimeEqual(password, secret)) {
+      return json({
+        ok: false,
+        error: "Неправильний пароль"
+      }, 401);
+    }
+
+    const token = await createSession(secret);
+
+    return json({
+      ok: true,
+      message: "Вхід успішний"
+    }, 200, {
+      "Set-Cookie":
+        `tanuki_admin_session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=${ADMIN_SESSION_SECONDS}`
+    });
+  }
+
+  if (path === "/api/admin/logout" && method === "POST") {
+    return json({
+      ok: true,
+      message: "Ви вийшли з адмін-панелі"
+    }, 200, {
+      "Set-Cookie":
+        "tanuki_admin_session=; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=0"
+    });
+  }
+
+  if (path === "/api/admin/me" && method === "GET") {
+    const authenticated = await verifySession(request, secret);
+
+    return json({
+      ok: true,
+      authenticated
+    });
+  }
+
+  const authenticated = await verifySession(request, secret);
+
+  if (!authenticated) {
+    return json({
+      ok: false,
+      error: "Потрібно увійти в адмін-панель"
+    }, 401);
+  }
+
+  if (path === "/api/admin/orders" && method === "GET") {
+    try {
+      const result = await env.DB.prepare(`
+        SELECT
+          id,
+          order_number,
+          customer_name,
+          customer_phone,
+          customer_city,
+          customer_address,
+          customer_comment,
+          total_amount,
+          status,
+          created_at
+        FROM orders
+        ORDER BY created_at DESC, id DESC
+        LIMIT 100
+      `).all();
+
+      const orders = result.results || [];
+
+      if (orders.length === 0) {
+        return json({
+          ok: true,
+          orders: []
+        });
+      }
+
+      const placeholders = orders.map(() => "?").join(",");
+
+      const itemResult = await env.DB.prepare(`
+        SELECT
+          order_id,
+          product_id,
+          product_name,
+          price,
+          quantity
+        FROM order_items
+        WHERE order_id IN (${placeholders})
+        ORDER BY id ASC
+      `).bind(
+        ...orders.map(order => order.id)
+      ).all();
+
+      const itemsByOrder = {};
+
+      for (const item of itemResult.results || []) {
+        if (!itemsByOrder[item.order_id]) {
+          itemsByOrder[item.order_id] = [];
+        }
+
+        itemsByOrder[item.order_id].push({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          price: item.price,
+          quantity: item.quantity
+        });
+      }
+
+      return json({
+        ok: true,
+        orders: orders.map(order => ({
+          ...order,
+          items: itemsByOrder[order.id] || []
+        }))
+      });
+    } catch (error) {
+      console.error("Admin orders error:", error);
+
+      return json({
+        ok: false,
+        error: "Не вдалося завантажити замовлення"
+      }, 500);
+    }
+  }
+
+  const statusMatch = path.match(
+    /^\/api\/admin\/orders\/(\d+)\/status$/
+  );
+
+  if (statusMatch && method === "PATCH") {
+    const orderId = Number(statusMatch[1]);
+
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+      return json({
+        ok: false,
+        error: "Некоректний номер замовлення"
+      }, 400);
+    }
+
+    let body;
+
+    try {
+      body = await request.json();
+    } catch {
+      return json({
+        ok: false,
+        error: "Некоректний формат запиту"
+      }, 400);
+    }
+
+    const status = cleanText(body.status, 30);
+
+    if (!ORDER_STATUSES.includes(status)) {
+      return json({
+        ok: false,
+        error: "Невідомий статус замовлення"
+      }, 400);
+    }
+
+    try {
+      const result = await env.DB.prepare(`
+        UPDATE orders
+        SET status = ?
+        WHERE id = ?
+      `).bind(status, orderId).run();
+
+      if (!result.meta || result.meta.changes === 0) {
+        return json({
+          ok: false,
+          error: "Замовлення не знайдено"
+        }, 404);
+      }
+
+      return json({
+        ok: true,
+        message: "Статус замовлення оновлено",
+        status
+      });
+    } catch (error) {
+      console.error("Admin status update error:", error);
+
+      return json({
+        ok: false,
+        error: "Не вдалося змінити статус"
+      }, 500);
+    }
+  }
+
+  return json({
+    ok: false,
+    error: "Admin API endpoint not found"
+  }, 404);
+}
+
+// ================================
+// MAIN WORKER
+// ================================
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+
+    if (!env.DB || !env.ASSETS) {
+      return json({
+        ok: false,
+        error: "Worker bindings are not configured"
+      }, 500);
+    }
+
+    if (
+      url.pathname === "/api/telegram/webhook" &&
+      request.method === "POST"
+    ) {
+      return handleTelegramWebhook(request, env);
+    }
+
+    if (
+      (url.pathname === "/admin" ||
+       url.pathname === "/admin/") &&
+      request.method === "GET"
+    ) {
+      const adminUrl = new URL("/admin/index.html", url);
+
+      return env.ASSETS.fetch(
+        new Request(adminUrl, request)
+      );
+    }
+
+    if (
+      url.pathname === "/api/health" &&
+      request.method === "GET"
+    ) {
+      return json({
+        ok: true,
+        service: "Tanuki Shop",
+        database: "connected"
+      });
+    }
+
+    if (
+      url.pathname === "/api/orders" &&
+      request.method === "POST"
+    ) {
+      return createOrder(request, env);
+    }
+
+    if (url.pathname.startsWith("/api/admin/")) {
+      return handleAdmin(request, env, url);
+    }
+
+    if (url.pathname.startsWith("/api/")) {
+      return json({
+        ok: false,
+        error: "API endpoint not found"
+      }, 404);
+    }
+
+    return env.ASSETS.fetch(request);
+  }
+};
