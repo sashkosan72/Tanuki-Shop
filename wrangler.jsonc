@@ -1,0 +1,22 @@
+
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tanuki-shop",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-11",
+  "observability": {
+    "enabled": true
+  },
+  "assets": {
+    "directory": ".",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "tanuki-shop-db",
+      "database_id": "ed78409a-d25e-4c82-841b-f73b78944bc2"
+    }
+  ]
+}
