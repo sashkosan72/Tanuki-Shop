@@ -1,3 +1,4 @@
+
 const PRODUCTS = {
   "tanuki-plush": { name: "Tanuki Plush", price: 499 },
   "kawaii-stickers": { name: "Kawaii Sticker Pack", price: 149 },
@@ -50,11 +51,12 @@ function escapeHtml(value) {
 // ================================
 
 async function telegramCall(env, method, data) {
-  const token = env.TELEGRAM_BOT_TOKEN;
-  if (!token) throw new Error("Telegram token is missing");
+  if (!env.TELEGRAM_BOT_TOKEN) {
+    throw new Error("Telegram token is missing");
+  }
 
   const response = await fetch(
-    `https://api.telegram.org/bot${token}/${method}`,
+    `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -66,34 +68,31 @@ async function telegramCall(env, method, data) {
   const result = await response.json();
 
   if (!response.ok || !result.ok) {
-    throw new Error(
-      `Telegram ${method} failed: ${JSON.stringify(result)}`
-    );
+    throw new Error(`Telegram ${method} failed`);
   }
 
   return result;
 }
 
 async function configureTelegramWebhook(env) {
-  const secret = env.TELEGRAM_WEBHOOK_SECRET;
-  if (!secret) throw new Error("TELEGRAM_WEBHOOK_SECRET is missing");
+  if (!env.TELEGRAM_WEBHOOK_SECRET) {
+    throw new Error("Webhook secret is missing");
+  }
 
   return telegramCall(env, "setWebhook", {
     url: "https://tanukishop.pp.ua/api/telegram/webhook",
-    secret_token: secret,
+    secret_token: env.TELEGRAM_WEBHOOK_SECRET,
     allowed_updates: ["callback_query"]
   });
 }
 
 async function notifyTelegram(env, order) {
-  const chatId = env.TELEGRAM_CHAT_ID;
-
-  if (!env.TELEGRAM_BOT_TOKEN || !chatId) {
-    console.error("Telegram secrets are missing");
+  if (!env.TELEGRAM_CHAT_ID) {
+    console.error("TELEGRAM_CHAT_ID is missing");
     return;
   }
 
-  const productLines = order.items.map(item =>
+  const products = order.items.map(item =>
     `• ${escapeHtml(item.name)} × ${item.quantity} — ${item.price * item.quantity} ₴`
   );
 
@@ -107,7 +106,7 @@ async function notifyTelegram(env, order) {
     `<b>Адреса:</b> ${escapeHtml(order.customerAddress)}`,
     "",
     "<b>Товари:</b>",
-    ...productLines,
+    ...products,
     "",
     `<b>Сума:</b> ${order.total} ₴`,
     `<b>Коментар:</b> ${escapeHtml(order.customerComment || "Немає")}`,
@@ -119,7 +118,7 @@ async function notifyTelegram(env, order) {
     await configureTelegramWebhook(env);
 
     await telegramCall(env, "sendMessage", {
-      chat_id: chatId,
+      chat_id: env.TELEGRAM_CHAT_ID,
       text: message,
       parse_mode: "HTML",
       reply_markup: {
@@ -150,14 +149,20 @@ async function notifyTelegram(env, order) {
   }
 }
 
+// ================================
+// TELEGRAM WEBHOOK
+// ================================
+
 async function handleTelegramWebhook(request, env) {
-  const secret = env.TELEGRAM_WEBHOOK_SECRET;
   const receivedSecret = request.headers.get(
     "X-Telegram-Bot-Api-Secret-Token"
   );
 
-  if (!secret || receivedSecret !== secret) {
-    return json({ ok: false, error: "Unauthorized" }, 401);
+  if (
+    !env.TELEGRAM_WEBHOOK_SECRET ||
+    receivedSecret !== env.TELEGRAM_WEBHOOK_SECRET
+  ) {
+    return json({ ok: false }, 401);
   }
 
   let update;
@@ -169,20 +174,23 @@ async function handleTelegramWebhook(request, env) {
   }
 
   const callback = update.callback_query;
-  if (!callback) return json({ ok: true });
 
-  const chatId = String(env.TELEGRAM_CHAT_ID || "");
-  const callbackChatId = String(callback.message?.chat?.id || "");
-  const callbackUserId = String(callback.from?.id || "");
+  if (!callback) {
+    return json({ ok: true });
+  }
+
+  const expectedChat = String(env.TELEGRAM_CHAT_ID || "");
+  const actualChat = String(callback.message?.chat?.id || "");
+  const actualUser = String(callback.from?.id || "");
 
   if (
-    !chatId ||
-    callbackChatId !== chatId ||
-    callbackUserId !== chatId
+    !expectedChat ||
+    actualChat !== expectedChat ||
+    actualUser !== expectedChat
   ) {
     await telegramCall(env, "answerCallbackQuery", {
       callback_query_id: callback.id,
-      text: "У вас немає дозволу змінювати замовлення.",
+      text: "У вас немає дозволу.",
       show_alert: true
     }).catch(error => console.error(error));
 
@@ -196,8 +204,7 @@ async function handleTelegramWebhook(request, env) {
   if (!match) {
     await telegramCall(env, "answerCallbackQuery", {
       callback_query_id: callback.id,
-      text: "Невідома дія.",
-      show_alert: true
+      text: "Невідома дія."
     }).catch(error => console.error(error));
 
     return json({ ok: true });
@@ -225,37 +232,32 @@ async function handleTelegramWebhook(request, env) {
 
     await telegramCall(env, "answerCallbackQuery", {
       callback_query_id: callback.id,
-      text: `Статус змінено: ${TELEGRAM_STATUS[status]}`
+      text: `Статус: ${TELEGRAM_STATUS[status]}`
     });
 
     const originalText = callback.message?.text || "";
+
     const cleanMessage = originalText.replace(
       /\n\n<b>Статус:<\/b>.*$/s,
       ""
     );
 
-    const updatedMessage = [
-      cleanMessage,
-      "",
-      `<b>Статус:</b> ${TELEGRAM_STATUS[status]}`
-    ].join("\n");
-
     await telegramCall(env, "editMessageText", {
       chat_id: callback.message.chat.id,
       message_id: callback.message.message_id,
-      text: updatedMessage,
+      text: cleanMessage +
+        `\n\n<b>Статус:</b> ${TELEGRAM_STATUS[status]}`,
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: []
       }
     });
-
   } catch (error) {
     console.error("Telegram webhook error:", error);
 
     await telegramCall(env, "answerCallbackQuery", {
       callback_query_id: callback.id,
-      text: "Не вдалося оновити статус. Спробуйте ще раз.",
+      text: "Не вдалося оновити статус.",
       show_alert: true
     }).catch(err => console.error(err));
   }
@@ -284,7 +286,10 @@ async function signSession(value, secret) {
   const key = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
+    {
+      name: "HMAC",
+      hash: "SHA-256"
+    },
     false,
     ["sign"]
   );
@@ -313,17 +318,16 @@ function constantTimeEqual(a, b) {
 }
 
 function getCookie(request, name) {
-  const cookieHeader = request.headers.get("Cookie") || "";
+  const cookies = request.headers.get("Cookie") || "";
 
-  for (const part of cookieHeader.split(";")) {
+  for (const part of cookies.split(";")) {
     const separator = part.indexOf("=");
 
     if (separator === -1) continue;
 
-    const key = part.slice(0, separator).trim();
-    const value = part.slice(separator + 1).trim();
-
-    if (key === name) return value;
+    if (part.slice(0, separator).trim() === name) {
+      return part.slice(separator + 1).trim();
+    }
   }
 
   return "";
@@ -360,275 +364,10 @@ async function verifySession(request, secret) {
     return false;
   }
 
-  try {
-    const expected = await signSession(
-      `${timestampText}.${nonce}`,
-      secret
-    );
+  const expected = await signSession(
+    `${timestampText}.${nonce}`,
+    secret
+  );
 
-    return constantTimeEqual(signature, expected);
-  } catch (error) {
-    console.error("Session verification error:", error);
-    return false;
-  }
+  return constantTimeEqual(signature, expected);
 }
-
-// ================================
-// CREATE ORDER
-// ================================
-
-async function createOrder(request, env) {
-  let body;
-
-  try {
-    body = await request.json();
-  } catch {
-    return json({
-      ok: false,
-      error: "Некоректний формат запиту"
-    }, 400);
-  }
-
-  const customerName = cleanText(body.customerName, 100);
-  const customerPhone = cleanText(body.customerPhone, 40);
-  const customerCity = cleanText(body.customerCity, 100);
-  const customerAddress = cleanText(body.customerAddress, 200);
-  const customerComment = cleanText(body.customerComment, 1000);
-
-  if (
-    !customerName ||
-    !customerPhone ||
-    !customerCity ||
-    !customerAddress
-  ) {
-    return json({
-      ok: false,
-      error: "Заповніть усі обов'язкові поля"
-    }, 400);
-  }
-
-  if (!Array.isArray(body.items) || body.items.length === 0) {
-    return json({
-      ok: false,
-      error: "Кошик порожній"
-    }, 400);
-  }
-
-  if (body.items.length > 30) {
-    return json({
-      ok: false,
-      error: "Забагато різних товарів"
-    }, 400);
-  }
-
-  const items = [];
-  let total = 0;
-
-  for (const item of body.items) {
-    const product = PRODUCTS[item.id];
-    const quantity = Number(item.quantity);
-
-    if (
-      !product ||
-      !Number.isInteger(quantity) ||
-      quantity < 1 ||
-      quantity > 50
-    ) {
-      return json({
-        ok: false,
-        error: "Некоректний товар або кількість"
-      }, 400);
-    }
-
-    const itemTotal = product.price * quantity;
-    total += itemTotal;
-
-    items.push({
-      id: item.id,
-      name: product.name,
-      price: product.price,
-      quantity
-    });
-  }
-
-  if (!Number.isSafeInteger(total) || total <= 0) {
-    return json({
-      ok: false,
-      error: "Некоректна сума замовлення"
-    }, 400);
-  }
-
-  const orderNumber =
-    "TS-" +
-    Date.now().toString(36).toUpperCase() +
-    "-" +
-    crypto.randomUUID().slice(0, 6).toUpperCase();
-
-  let orderId;
-
-  try {
-    const insertedOrder = await env.DB.prepare(`
-      INSERT INTO orders (
-        order_number,
-        customer_name,
-        customer_phone,
-        customer_city,
-        customer_address,
-        customer_comment,
-        total_amount,
-        status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
-      RETURNING id
-    `).bind(
-      orderNumber,
-      customerName,
-      customerPhone,
-      customerCity,
-      customerAddress,
-      customerComment,
-      total
-    ).first();
-
-    if (!insertedOrder) {
-      throw new Error("Не вдалося створити замовлення");
-    }
-
-    orderId = insertedOrder.id;
-
-    const statements = items.map(item =>
-      env.DB.prepare(`
-        INSERT INTO order_items (
-          order_id,
-          product_id,
-          product_name,
-          price,
-          quantity
-        )
-        VALUES (?, ?, ?, ?, ?)
-      `).bind(
-        orderId,
-        item.id,
-        item.name,
-        item.price,
-        item.quantity
-      )
-    );
-
-    await env.DB.batch(statements);
-
-    await notifyTelegram(env, {
-      id: orderId,
-      orderNumber,
-      customerName,
-      customerPhone,
-      customerCity,
-      customerAddress,
-      customerComment,
-      total,
-      items
-    });
-
-    return json({
-      ok: true,
-      orderNumber,
-      total,
-      message: "Замовлення успішно збережено"
-    }, 201);
-
-  } catch (error) {
-    console.error("Order creation error:", error);
-
-    if (orderId) {
-      try {
-        await env.DB.prepare(
-          "DELETE FROM orders WHERE id = ?"
-        ).bind(orderId).run();
-      } catch (cleanupError) {
-        console.error("Order cleanup error:", cleanupError);
-      }
-    }
-
-    return json({
-      ok: false,
-      error: "Не вдалося зберегти замовлення. Спробуйте пізніше."
-    }, 500);
-  }
-}
-
-// ================================
-// ADMIN API
-// ================================
-
-async function handleAdmin(request, env, url) {
-  const path = url.pathname;
-  const method = request.method;
-  const secret = env.ADMIN_PASSWORD;
-
-  if (!secret) {
-    return json({
-      ok: false,
-      error: "ADMIN_PASSWORD is not configured"
-    }, 500);
-  }
-
-  if (path === "/api/admin/login" && method === "POST") {
-    let body;
-
-    try {
-      body = await request.json();
-    } catch {
-      return json({
-        ok: false,
-        error: "Некоректний запит"
-      }, 400);
-    }
-
-    const password =
-      typeof body.password === "string"
-        ? body.password
-        : "";
-
-    if (!constantTimeEqual(password, secret)) {
-      return json({
-        ok: false,
-        error: "Неправильний пароль"
-      }, 401);
-    }
-
-    const token = await createSession(secret);
-
-    return json({
-      ok: true,
-      message: "Вхід успішний"
-    }, 200, {
-      "Set-Cookie":
-        `tanuki_admin_session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=${ADMIN_SESSION_SECONDS}`
-    });
-  }
-
-  if (path === "/api/admin/logout" && method === "POST") {
-    return json({
-      ok: true,
-      message: "Ви вийшли з адмін-панелі"
-    }, 200, {
-      "Set-Cookie":
-        "tanuki_admin_session=; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=0"
-    });
-  }
-
-  if (path === "/api/admin/me" && method === "GET") {
-    const authenticated = await verifySession(request, secret);
-
-    return json({
-      ok: true,
-      authenticated
-    });
-  }
-
-  const authenticated = await verifySession(request, secret);
-
-  if (!authenticated) {
-    return json({
-      ok: false,
-      error: "Потр
