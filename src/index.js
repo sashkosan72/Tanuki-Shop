@@ -14,11 +14,22 @@ const PRODUCTS = {
   }
 };
 
-function json(data, status = 200) {
+const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
+
+const ORDER_STATUSES = [
+  "new",
+  "confirmed",
+  "shipped",
+  "completed",
+  "cancelled"
+];
+
+function json(data, status = 200, headers = {}) {
   return Response.json(data, {
     status,
     headers: {
-      "Cache-Control": "no-store"
+      "Cache-Control": "no-store",
+      ...headers
     }
   });
 }
@@ -26,6 +37,126 @@ function json(data, status = 200) {
 function cleanText(value, maxLength = 300) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
+}
+
+function base64UrlEncode(bytes) {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+
+  return btoa(binary)
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function base64UrlDecode(value) {
+  const base64 = value
+    .replace(/-/g, "+")
+    .replace(/_/g, "/");
+
+  const padded = base64.padEnd(
+    Math.ceil(base64.length / 4) * 4,
+    "="
+  );
+
+  const binary = atob(padded);
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+
+async function signSession(value, secret) {
+  const key = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secret),
+    {
+      name: "HMAC",
+      hash: "SHA-256"
+    },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "HMAC",
+    key,
+    new TextEncoder().encode(value)
+  );
+
+  return base64UrlEncode(new Uint8Array(signature));
+}
+
+function constantTimeEqual(a, b) {
+  const left = new TextEncoder().encode(a);
+  const right = new TextEncoder().encode(b);
+
+  let difference = left.length ^ right.length;
+  const length = Math.max(left.length, right.length);
+
+  for (let i = 0; i < length; i++) {
+    difference |=
+      (left[i] || 0) ^ (right[i] || 0);
+  }
+
+  return difference === 0;
+}
+
+function getCookie(request, name) {
+  const cookieHeader = request.headers.get("Cookie") || "";
+
+  for (const part of cookieHeader.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator === -1) continue;
+
+    const key = part.slice(0, separator).trim();
+    const value = part.slice(separator + 1).trim();
+
+    if (key === name) return value;
+  }
+
+  return "";
+}
+
+async function createSession(secret) {
+  const timestamp = Math.floor(Date.now() / 1000);
+  const nonce = crypto.randomUUID();
+  const payload = `${timestamp}.${nonce}`;
+  const signature = await signSession(payload, secret);
+
+  return `${payload}.${signature}`;
+}
+
+async function verifySession(request, secret) {
+  if (!secret) return false;
+
+  const token = getCookie(request, "tanuki_admin_session");
+  const parts = token.split(".");
+
+  if (parts.length !== 3) return false;
+
+  const [timestampText, nonce, signature] = parts;
+  const timestamp = Number(timestampText);
+  const now = Math.floor(Date.now() / 1000);
+
+  if (
+    !Number.isInteger(timestamp) ||
+    !nonce ||
+    !signature ||
+    timestamp > now + 60 ||
+    now - timestamp > ADMIN_SESSION_SECONDS
+  ) {
+    return false;
+  }
+
+  const payload = `${timestampText}.${nonce}`;
+
+  try {
+    const expected = await signSession(payload, secret);
+    return constantTimeEqual(signature, expected);
+  } catch (error) {
+    console.error("Session verification error:", error);
+    return false;
+  }
 }
 
 async function createOrder(request, env) {
@@ -195,6 +326,228 @@ async function createOrder(request, env) {
   }
 }
 
+async function handleAdmin(request, env, url) {
+  const path = url.pathname;
+  const method = request.method;
+  const secret = env.ADMIN_PASSWORD;
+
+  if (!secret) {
+    return json({
+      ok: false,
+      error: "ADMIN_PASSWORD is not configured"
+    }, 500);
+  }
+
+  if (path === "/api/admin/login" && method === "POST") {
+    let body;
+
+    try {
+      body = await request.json();
+    } catch {
+      return json({
+        ok: false,
+        error: "Некоректний запит"
+      }, 400);
+    }
+
+    const password =
+      typeof body.password === "string"
+        ? body.password
+        : "";
+
+    if (!constantTimeEqual(password, secret)) {
+      return json({
+        ok: false,
+        error: "Неправильний пароль"
+      }, 401);
+    }
+
+    const token = await createSession(secret);
+
+    return json({
+      ok: true,
+      message: "Вхід успішний"
+    }, 200, {
+      "Set-Cookie":
+        `tanuki_admin_session=${token}; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=${ADMIN_SESSION_SECONDS}`
+    });
+  }
+
+  if (path === "/api/admin/logout" && method === "POST") {
+    return json({
+      ok: true,
+      message: "Ви вийшли з адмін-панелі"
+    }, 200, {
+      "Set-Cookie":
+        "tanuki_admin_session=; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=0"
+    });
+  }
+
+  if (path === "/api/admin/me" && method === "GET") {
+    const authenticated = await verifySession(request, secret);
+
+    return json({
+      ok: true,
+      authenticated
+    });
+  }
+
+  const authenticated = await verifySession(request, secret);
+
+  if (!authenticated) {
+    return json({
+      ok: false,
+      error: "Потрібно увійти в адмін-панель"
+    }, 401);
+  }
+
+  if (path === "/api/admin/orders" && method === "GET") {
+    try {
+      const result = await env.DB.prepare(`
+        SELECT
+          id,
+          order_number,
+          customer_name,
+          customer_phone,
+          customer_city,
+          customer_address,
+          customer_comment,
+          total_amount,
+          status,
+          created_at
+        FROM orders
+        ORDER BY created_at DESC, id DESC
+        LIMIT 100
+      `).all();
+
+      const orders = result.results || [];
+
+      if (orders.length === 0) {
+        return json({
+          ok: true,
+          orders: []
+        });
+      }
+
+      const placeholders = orders.map(() => "?").join(",");
+
+      const itemResult = await env.DB.prepare(`
+        SELECT
+          order_id,
+          product_id,
+          product_name,
+          price,
+          quantity
+        FROM order_items
+        WHERE order_id IN (${placeholders})
+        ORDER BY id ASC
+      `).bind(...orders.map(order => order.id)).all();
+
+      const itemsByOrder = {};
+
+      for (const item of itemResult.results || []) {
+        if (!itemsByOrder[item.order_id]) {
+          itemsByOrder[item.order_id] = [];
+        }
+
+        itemsByOrder[item.order_id].push({
+          product_id: item.product_id,
+          product_name: item.product_name,
+          price: item.price,
+          quantity: item.quantity
+        });
+      }
+
+      const ordersWithItems = orders.map(order => ({
+        ...order,
+        items: itemsByOrder[order.id] || []
+      }));
+
+      return json({
+        ok: true,
+        orders: ordersWithItems
+      });
+
+    } catch (error) {
+      console.error("Admin orders error:", error);
+
+      return json({
+        ok: false,
+        error: "Не вдалося завантажити замовлення"
+      }, 500);
+    }
+  }
+
+  const statusMatch = path.match(
+    /^\/api\/admin\/orders\/(\d+)\/status$/
+  );
+
+  if (statusMatch && method === "PATCH") {
+    const orderId = Number(statusMatch[1]);
+
+    if (!Number.isSafeInteger(orderId) || orderId <= 0) {
+      return json({
+        ok: false,
+        error: "Некоректний номер замовлення"
+      }, 400);
+    }
+
+    let body;
+
+    try {
+      body = await request.json();
+    } catch {
+      return json({
+        ok: false,
+        error: "Некоректний формат запиту"
+      }, 400);
+    }
+
+    const status = cleanText(body.status, 30);
+
+    if (!ORDER_STATUSES.includes(status)) {
+      return json({
+        ok: false,
+        error: "Невідомий статус замовлення"
+      }, 400);
+    }
+
+    try {
+      const result = await env.DB.prepare(`
+        UPDATE orders
+        SET status = ?
+        WHERE id = ?
+      `).bind(status, orderId).run();
+
+      if (!result.meta || result.meta.changes === 0) {
+        return json({
+          ok: false,
+          error: "Замовлення не знайдено"
+        }, 404);
+      }
+
+      return json({
+        ok: true,
+        message: "Статус замовлення оновлено",
+        status
+      });
+
+    } catch (error) {
+      console.error("Admin status update error:", error);
+
+      return json({
+        ok: false,
+        error: "Не вдалося змінити статус"
+      }, 500);
+    }
+  }
+
+  return json({
+    ok: false,
+    error: "Admin API endpoint not found"
+  }, 404);
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -204,6 +557,18 @@ export default {
         ok: false,
         error: "Worker bindings are not configured"
       }, 500);
+    }
+
+    if (
+      (url.pathname === "/admin" ||
+       url.pathname === "/admin/") &&
+      request.method === "GET"
+    ) {
+      const adminUrl = new URL("/admin/index.html", url);
+
+      return env.ASSETS.fetch(
+        new Request(adminUrl, request)
+      );
     }
 
     if (url.pathname === "/api/health" && request.method === "GET") {
@@ -216,6 +581,10 @@ export default {
 
     if (url.pathname === "/api/orders" && request.method === "POST") {
       return createOrder(request, env);
+    }
+
+    if (url.pathname.startsWith("/api/admin/")) {
+      return handleAdmin(request, env, url);
     }
 
     if (url.pathname.startsWith("/api/")) {
