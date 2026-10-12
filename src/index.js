@@ -1,3 +1,4 @@
+
 const PRODUCTS = {
   "tanuki-plush": {
     name: "Tanuki Plush",
@@ -86,7 +87,11 @@ function getCookie(request, name) {
     const value = part.slice(separator + 1).trim();
 
     if (key === name) {
-      return decodeURIComponent(value);
+      try {
+        return decodeURIComponent(value);
+      } catch {
+        return null;
+      }
     }
   }
 
@@ -545,92 +550,141 @@ async function linkTelegramOrder(
     return;
   }
 
-  const consumed = await env.DB.prepare(`
-    UPDATE telegram_link_tokens
-    SET used_at = datetime('now')
-    WHERE id = ?
-      AND used_at IS NULL
-      AND expires_at > datetime('now')
-  `)
-    .bind(tokenRow.id)
-    .run();
+  const telegramId = String(telegramUser.id);
+  const username = cleanText(
+    telegramUser.username || "",
+    100
+  ) || null;
 
-  if (!consumed.meta?.changes) {
-    await sendBuyerMenu(
-      env,
-      chatId,
-      "Не вдалося використати посилання. Можливо, воно вже було використане."
-    );
+  // Унікальний маркер цієї спроби прив'язки.
+  // Він дає змогу виконати споживання токена та запис прив'язки
+  // в одному D1 batch без повторного використання токена.
+  const claimMarker =
+    new Date().toISOString() +
+    "-" +
+    crypto.randomUUID();
 
-    return;
-  }
+  try {
+    const customerUpsert = env.DB.prepare(`
+      INSERT INTO telegram_customers (
+        telegram_id,
+        telegram_username
+      )
+      VALUES (?, ?)
+      ON CONFLICT(telegram_id)
+      DO UPDATE SET telegram_username = excluded.telegram_username
+    `)
+      .bind(telegramId, username);
 
-  await env.DB.prepare(`
-    INSERT INTO telegram_customers (
-      telegram_id,
-      telegram_username
-    )
-    VALUES (?, ?)
-    ON CONFLICT(telegram_id)
-    DO UPDATE SET telegram_username = excluded.telegram_username
-  `)
-    .bind(
-      String(telegramUser.id),
-      cleanText(telegramUser.username || "", 100) || null
-    )
-    .run();
+    const consumeToken = env.DB.prepare(`
+      UPDATE telegram_link_tokens
+      SET used_at = ?
+      WHERE id = ?
+        AND used_at IS NULL
+        AND expires_at > datetime('now')
+    `)
+      .bind(claimMarker, tokenRow.id);
 
-  const customer = await env.DB.prepare(`
-    SELECT id
-    FROM telegram_customers
-    WHERE telegram_id = ?
-    LIMIT 1
-  `)
-    .bind(String(telegramUser.id))
-    .first();
-
-  if (!customer) {
-    throw new Error(
-      "Не вдалося створити запис Telegram-покупця."
-    );
-  }
-
-  if (!existingLink) {
-    await env.DB.prepare(`
+    const insertLink = env.DB.prepare(`
       INSERT INTO order_telegram_links (
         order_id,
         telegram_customer_id
       )
-      VALUES (?, ?)
+      SELECT
+        telegram_link_tokens.order_id,
+        telegram_customers.id
+      FROM telegram_link_tokens
+      JOIN telegram_customers
+        ON telegram_customers.telegram_id = ?
+      WHERE telegram_link_tokens.id = ?
+        AND telegram_link_tokens.used_at = ?
+      ON CONFLICT(order_id) DO NOTHING
     `)
       .bind(
-        tokenRow.order_id,
-        customer.id
-      )
-      .run();
+        telegramId,
+        tokenRow.id,
+        claimMarker
+      );
+
+    const batchResults = await env.DB.batch([
+      customerUpsert,
+      consumeToken,
+      insertLink
+    ]);
+
+    const consumedChanges =
+      batchResults[1]?.meta?.changes || 0;
+
+    if (!consumedChanges) {
+      await sendBuyerMenu(
+        env,
+        chatId,
+        "Посилання вже використане або термін його дії минув."
+      );
+
+      return;
+    }
+
+    const customer = await env.DB.prepare(`
+      SELECT id
+      FROM telegram_customers
+      WHERE telegram_id = ?
+      LIMIT 1
+    `)
+      .bind(telegramId)
+      .first();
+
+    const linkedOrder = await env.DB.prepare(`
+      SELECT
+        o.order_number,
+        o.status,
+        tc.telegram_id
+      FROM order_telegram_links l
+      JOIN telegram_customers tc
+        ON tc.id = l.telegram_customer_id
+      JOIN orders o
+        ON o.id = l.order_id
+      WHERE l.order_id = ?
+      LIMIT 1
+    `)
+      .bind(tokenRow.order_id)
+      .first();
+
+    if (
+      !customer ||
+      !linkedOrder ||
+      String(linkedOrder.telegram_id) !== telegramId
+    ) {
+      throw new Error(
+        "Не вдалося підтвердити прив'язку Telegram."
+      );
+    }
+
+    await sendBuyerMenu(
+      env,
+      chatId,
+      [
+        "✅ Telegram успішно прив'язано!",
+        "",
+        `🧾 Замовлення: ${linkedOrder.order_number}`,
+        `📦 Статус: ${STATUS_LABELS[linkedOrder.status] || "Невідомий"}`,
+        "",
+        "Тепер ви отримуватимете повідомлення про зміну статусу."
+      ].join("\n")
+    );
+
+  } catch (error) {
+    console.error(
+      "Telegram order linking error:",
+      error.message
+    );
+
+    await sendBuyerMenu(
+      env,
+      chatId,
+      "Не вдалося завершити прив'язку. Якщо це замовлення вже прив'язане до вашого Telegram, скористайтеся меню. Якщо ні — зверніться до підтримки."
+    );
   }
-
-  const order = await env.DB.prepare(`
-    SELECT order_number, status
-    FROM orders
-    WHERE id = ?
-    LIMIT 1
-  `)
-    .bind(tokenRow.order_id)
-    .first();
-
-  await sendBuyerMenu(
-    env,
-    chatId,
-    [
-      "✅ Telegram успішно прив'язано!",
-      "",
-      `🧾 Замовлення: ${order?.order_number || ""}`,
-      `📦 Статус: ${STATUS_LABELS[order?.status] || "Невідомий"}`,
-      "",
-      "Тепер ви отримуватимете повідомлення про зміну статусу."
-    ].join("\n")
-  );
 }
 
 /* -------------------- BUYER ORDERS -------------------- */
@@ -721,7 +775,7 @@ async function handleBuyerSupport(
     await sendBuyerMenu(
       env,
       chatId,
-      "💬 Напишіть ваше запитання наступним повідомленням."
+      "Напишіть повідомлення після команди /support."
     );
 
     return;
@@ -770,7 +824,6 @@ async function handleBuyerMessage(env, message) {
 
   if (!chatId || !telegramUser) return;
 
-  // Працюємо тільки з приватними чатами.
   if (message.chat?.type !== "private") return;
 
   if (text.startsWith("/start")) {
@@ -826,7 +879,41 @@ async function handleBuyerMessage(env, message) {
     await sendBuyerMenu(
       env,
       chatId,
-      "💬 Напишіть ваше запитання наступним повідомленням — ми передамо його адміністратору."
+      "💬 Щоб написати підтримці, надішліть повідомлення у форматі:\n\n/support Ваше запитання"
+    );
+
+    return;
+  }
+
+  if (text.startsWith("/support")) {
+    const linkedCustomer = await env.DB.prepare(`
+      SELECT id
+      FROM telegram_customers
+      WHERE telegram_id = ?
+      LIMIT 1
+    `)
+      .bind(String(telegramUser.id))
+      .first();
+
+    if (!linkedCustomer) {
+      await sendBuyerMenu(
+        env,
+        chatId,
+        "Спочатку прив'яжіть покупку через посилання з сайту Tanuki Shop."
+      );
+
+      return;
+    }
+
+    const supportText = text
+      .replace(/^\/support(?:@\w+)?\s*/i, "")
+      .trim();
+
+    await handleBuyerSupport(
+      env,
+      chatId,
+      telegramUser,
+      supportText
     );
 
     return;
@@ -842,11 +929,10 @@ async function handleBuyerMessage(env, message) {
     .first();
 
   if (linkedCustomer) {
-    await handleBuyerSupport(
+    await sendBuyerMenu(
       env,
       chatId,
-      telegramUser,
-      text
+      "Скористайтеся кнопками меню або командою /support, щоб написати підтримці."
     );
   } else {
     await sendBuyerMenu(
@@ -934,7 +1020,8 @@ async function handleTelegramWebhook(request, env) {
       callback.from?.id || ""
     );
 
-    // Зберігаємо чинну модель доступу адміністратора.
+    // Адміністратор має керувати замовленнями
+    // лише зі свого приватного чату.
     if (
       !expectedChat ||
       actualChat !== expectedChat ||
@@ -1001,13 +1088,11 @@ async function handleTelegramWebhook(request, env) {
       }
     );
 
-    const oldText = callback.message?.text || "";
-
     const newText = [
-      oldText,
+      "🦝 <b>Tanuki Shop — замовлення</b>",
       "",
-      `🔄 <b>Поточний статус:</b> ${STATUS_LABELS[newStatus]}`,
-      `🧾 ${escapeHtml(current.order_number)}`
+      `🧾 <b>Номер:</b> ${escapeHtml(current.order_number)}`,
+      `🔄 <b>Поточний статус:</b> ${STATUS_LABELS[newStatus]}`
     ].join("\n");
 
     await telegramCall(
@@ -1042,8 +1127,8 @@ async function handleTelegramWebhook(request, env) {
       ).catch(() => {});
     }
 
-    // Повертаємо 200, щоб Telegram не повторював проблемне оновлення
-    // нескінченно. Деталі помилки залишаються в логах Worker.
+    // Не повертаємо Telegram нескінченні повтори
+    // проблемного оновлення. Помилка зберігається в логах.
   }
 
   return json({ ok: true });
@@ -1199,20 +1284,22 @@ async function createOrder(request, env) {
   const orderNumber = generateOrderNumber();
 
   try {
-    const insertOrder = await env.DB.prepare(`
-      INSERT INTO orders (
-        order_number,
-        customer_name,
-        customer_phone,
-        customer_city,
-        customer_address,
-        customer_comment,
-        total_amount,
-        status
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
-    `)
-      .bind(
+    // Створюємо замовлення та його позиції
+    // одним D1 batch.
+    const statements = [
+      env.DB.prepare(`
+        INSERT INTO orders (
+          order_number,
+          customer_name,
+          customer_phone,
+          customer_city,
+          customer_address,
+          customer_comment,
+          total_amount,
+          status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
+      `).bind(
         orderNumber,
         customerName,
         customerPhone,
@@ -1220,42 +1307,54 @@ async function createOrder(request, env) {
         customerAddress,
         customerComment,
         totalAmount
+      ),
+
+      ...orderItems.map(item =>
+        env.DB.prepare(`
+          INSERT INTO order_items (
+            order_id,
+            product_id,
+            product_name,
+            price,
+            quantity
+          )
+          SELECT id, ?, ?, ?, ?
+          FROM orders
+          WHERE order_number = ?
+        `).bind(
+          item.id,
+          item.name,
+          item.price,
+          item.quantity,
+          orderNumber
+        )
       )
-      .run();
+    ];
 
-    const orderId = insertOrder.meta?.last_row_id;
+    await env.DB.batch(statements);
 
-    if (!orderId) {
+    const savedOrder = await env.DB.prepare(`
+      SELECT id
+      FROM orders
+      WHERE order_number = ?
+      LIMIT 1
+    `)
+      .bind(orderNumber)
+      .first();
+
+    if (!savedOrder) {
       throw new Error(
         "Не вдалося отримати ID замовлення."
       );
     }
 
-    for (const item of orderItems) {
-      await env.DB.prepare(`
-        INSERT INTO order_items (
-          order_id,
-          product_id,
-          product_name,
-          price,
-          quantity
-        )
-        VALUES (?, ?, ?, ?, ?)
-      `)
-        .bind(
-          orderId,
-          item.id,
-          item.name,
-          item.price,
-          item.quantity
-        )
-        .run();
-    }
+    const orderId = savedOrder.id;
 
     let telegramLink = null;
 
-    // Якщо база Telegram-таблиць доступна, створюємо одноразове посилання.
-    // Помилка прив'язки не повинна скасовувати саме замовлення.
+    // Створення одноразового Telegram-посилання.
+    // Якщо ця частина не спрацює, саме замовлення
+    // все одно залишається оформленим.
     try {
       const rawToken = createTelegramLinkToken();
       const tokenHash = await sha256Hex(rawToken);
@@ -1502,7 +1601,6 @@ export default {
     const method = request.method.toUpperCase();
 
     try {
-      // Перевірка сервера та бази даних.
       if (
         path === "/api/health" &&
         method === "GET"
@@ -1510,7 +1608,6 @@ export default {
         return healthCheck(env);
       }
 
-      // Telegram webhook: GET для перевірки адреси.
       if (
         path === "/api/telegram/webhook" &&
         method === "GET"
@@ -1523,7 +1620,6 @@ export default {
         });
       }
 
-      // Telegram webhook: POST від Telegram.
       if (
         path === "/api/telegram/webhook" &&
         method === "POST"
@@ -1543,7 +1639,6 @@ export default {
         });
       }
 
-      // Оформлення замовлення.
       if (
         path === "/api/orders" &&
         method === "POST"
@@ -1551,7 +1646,6 @@ export default {
         return createOrder(request, env);
       }
 
-      // Адміністративний вхід.
       if (
         path === "/api/admin/login" &&
         method === "POST"
@@ -1559,7 +1653,6 @@ export default {
         return adminLogin(request, env);
       }
 
-      // Вихід адміністратора.
       if (
         path === "/api/admin/logout" &&
         method === "POST"
@@ -1567,7 +1660,6 @@ export default {
         return adminLogout();
       }
 
-      // Перевірка авторизації адміністратора.
       if (
         path === "/api/admin/me" ||
         path === "/api/admin/session"
@@ -1590,7 +1682,6 @@ export default {
         });
       }
 
-      // Усі інші адміністративні маршрути потребують входу.
       if (path.startsWith("/api/admin/")) {
         const authorized = await requireAdmin(
           request,
@@ -1611,8 +1702,6 @@ export default {
           return adminGetOrders(env);
         }
 
-        // PATCH /api/admin/orders/123
-        // PATCH /api/admin/orders/123/status
         const statusMatch = path.match(
           /^\/api\/admin\/orders\/(\d+)(?:\/status)?$/
         );
@@ -1634,7 +1723,6 @@ export default {
         }, 404);
       }
 
-      // Статичні файли сайту.
       if (env.ASSETS) {
         return env.ASSETS.fetch(request);
       }
