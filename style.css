@@ -604,14 +604,11 @@ a {
 .empty-cart {
   padding: 35px 20px;
   text-align: center;
+  font-size: 30px;
 }
 
 .empty-cart > * {
   margin: 8px 0;
-}
-
-.empty-cart {
-  font-size: 30px;
 }
 
 .empty-cart h3 {
@@ -671,7 +668,6 @@ a {
   z-index: 1100;
 }
 
-/* The checkout window is hidden until JavaScript adds .active. */
 .checkout-modal:not(.active) {
   display: none !important;
 }
