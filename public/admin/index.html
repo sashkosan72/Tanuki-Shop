@@ -67,6 +67,7 @@ select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
 .message small{display:block;color:#756b74;font-size:11px;margin-top:5px}
 .reply-form{display:grid;gap:9px;border-top:1px solid #f0dfe5;padding-top:14px}
 .reply-actions{display:flex;gap:8px;flex-wrap:wrap}
+#webhookSetupMessage{margin:8px 0 16px}
 @media(max-width:700px){
  .top{align-items:flex-start;flex-direction:column}
  .panel,.order{padding:15px}
@@ -101,9 +102,14 @@ select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
     </div>
     <div class="actions">
       <button id="refreshButton" class="secondary" type="button">Оновити</button>
+      <button id="webhookSetupButton" class="secondary" type="button">
+        Налаштувати Telegram Webhook
+      </button>
       <button id="logoutButton" type="button">Вийти</button>
     </div>
   </header>
+
+  <p id="webhookSetupMessage" class="muted" role="status" aria-live="polite"></p>
 
   <nav class="tabs">
     <button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
@@ -175,6 +181,9 @@ const replyText = document.getElementById("replyText");
 const replyButton = document.getElementById("replyButton");
 const closeChatButton = document.getElementById("closeChatButton");
 const supportMessage = document.getElementById("supportMessage");
+
+const webhookSetupButton = document.getElementById("webhookSetupButton");
+const webhookSetupMessage = document.getElementById("webhookSetupMessage");
 
 let selectedChatId = null;
 let selectedChatStatus = null;
@@ -523,6 +532,37 @@ closeChatButton.addEventListener("click", async () => {
     supportMessage.textContent = error.message;
   } finally {
     closeChatButton.disabled = false;
+  }
+});
+
+/* -------------------- TELEGRAM WEBHOOK -------------------- */
+
+webhookSetupButton.addEventListener("click", async () => {
+  if (!confirm("Налаштувати Telegram Webhook для Tanuki Shop? Це зареєструє адресу магазину в Telegram.")) {
+    return;
+  }
+
+  webhookSetupButton.disabled = true;
+  webhookSetupButton.textContent = "Налаштування…";
+  webhookSetupMessage.className = "muted";
+  webhookSetupMessage.textContent = "Звертаємося до Telegram…";
+
+  try {
+    const data = await api("/api/admin/telegram/webhook/setup", {
+      method: "POST",
+      body: "{}"
+    });
+
+    webhookSetupMessage.className = "success";
+    webhookSetupMessage.textContent =
+      data.message || "Telegram Webhook успішно налаштовано.";
+  } catch (error) {
+    webhookSetupMessage.className = "error";
+    webhookSetupMessage.textContent =
+      error.message || "Не вдалося налаштувати Telegram Webhook.";
+  } finally {
+    webhookSetupButton.disabled = false;
+    webhookSetupButton.textContent = "Налаштувати Telegram Webhook";
   }
 });
 
