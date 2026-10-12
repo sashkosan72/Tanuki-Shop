@@ -65,6 +65,7 @@ function getCookie(request, name) {
 
   for (const part of header.split(";")) {
     const separator = part.indexOf("=");
+
     if (separator === -1) continue;
 
     const key = part.slice(0, separator).trim();
@@ -138,7 +139,10 @@ function createTelegramLinkToken() {
 
 function telegramDisplayName(user) {
   if (!user) return "Покупець";
-  if (user.username) return `@${user.username}`;
+
+  if (user.username) {
+    return `@${user.username}`;
+  }
 
   return [
     user.first_name,
@@ -189,7 +193,7 @@ async function ensureSupportTables(env) {
     `)
   ]);
 
-  // Безпечна міграція для вже створеної таблиці.
+  // Безпечна міграція для старої таблиці.
   try {
     await env.DB.prepare(`
       ALTER TABLE support_chats
@@ -217,7 +221,8 @@ async function getOrCreateSupportChat(env, telegramId, customerName) {
   if (chat) {
     await env.DB.prepare(`
       UPDATE support_chats
-      SET customer_name = ?, updated_at = CURRENT_TIMESTAMP
+      SET customer_name = ?,
+          updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(customerName, chat.id).run();
 
@@ -283,6 +288,7 @@ async function createAdminSignature(timestamp, password) {
 async function createAdminSession(password) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = await createAdminSignature(timestamp, password);
+
   return `${timestamp}.${signature}`;
 }
 
@@ -290,9 +296,11 @@ async function verifyAdminSession(request, env) {
   if (!env.ADMIN_PASSWORD) return false;
 
   const session = getCookie(request, "tanuki_admin_session");
+
   if (!session) return false;
 
   const parts = session.split(".");
+
   if (parts.length !== 2) return false;
 
   const [timestamp, signature] = parts;
@@ -337,7 +345,9 @@ async function telegramCall(env, method, payload) {
     `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/${method}`,
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(payload)
     }
   );
@@ -386,9 +396,6 @@ async function notifyTelegram(env, order) {
     console.error("Telegram не налаштований: перевірте секрети.");
     return;
   }
-
-  // Webhook налаштовується окремим захищеним endpoint,
-  // а не повторно під час кожного замовлення.
 
   const itemsText = order.items.map(item =>
     `• ${escapeHtml(item.name)} × ${item.quantity} — ${item.price * item.quantity} ₴`
@@ -456,8 +463,10 @@ async function notifyBuyerOrderStatus(env, orderId, status) {
     const linked = await env.DB.prepare(`
       SELECT tc.telegram_id, o.order_number
       FROM order_telegram_links l
-      JOIN telegram_customers tc ON tc.id = l.telegram_customer_id
-      JOIN orders o ON o.id = l.order_id
+      JOIN telegram_customers tc
+        ON tc.id = l.telegram_customer_id
+      JOIN orders o
+        ON o.id = l.order_id
       WHERE l.order_id = ?
       LIMIT 1
     `).bind(orderId).first();
@@ -481,7 +490,11 @@ async function notifyBuyerOrderStatus(env, orderId, status) {
 
 /* -------------------- BUYER MENU -------------------- */
 
-async function sendBuyerMenu(env, chatId, greeting = "Вітаємо в Tanuki Shop! 🦝") {
+async function sendBuyerMenu(
+  env,
+  chatId,
+  greeting = "Вітаємо в Tanuki Shop! 🦝"
+) {
   return sendBuyerMessage(env, chatId, greeting, {
     reply_markup: BUYER_MENU
   });
@@ -496,6 +509,7 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
       chatId,
       "Посилання для прив'язки некоректне або неповне. Відкрийте посилання з підтвердження замовлення ще раз."
     );
+
     return;
   }
 
@@ -516,13 +530,15 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
       chatId,
       "Це посилання вже використане або термін його дії минув. Зверніться до підтримки магазину."
     );
+
     return;
   }
 
   const existingLink = await env.DB.prepare(`
     SELECT tc.telegram_id
     FROM order_telegram_links l
-    JOIN telegram_customers tc ON tc.id = l.telegram_customer_id
+    JOIN telegram_customers tc
+      ON tc.id = l.telegram_customer_id
     WHERE l.order_id = ?
     LIMIT 1
   `).bind(tokenRow.order_id).first();
@@ -536,6 +552,7 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
       chatId,
       "Це замовлення вже прив'язане до іншого Telegram-акаунта."
     );
+
     return;
   }
 
@@ -546,10 +563,14 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
   try {
     const batchResults = await env.DB.batch([
       env.DB.prepare(`
-        INSERT INTO telegram_customers (telegram_id, telegram_username)
+        INSERT INTO telegram_customers (
+          telegram_id,
+          telegram_username
+        )
         VALUES (?, ?)
         ON CONFLICT(telegram_id)
-        DO UPDATE SET telegram_username = excluded.telegram_username
+        DO UPDATE SET
+          telegram_username = excluded.telegram_username
       `).bind(telegramId, username),
 
       env.DB.prepare(`
@@ -561,7 +582,10 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
       `).bind(claimMarker, tokenRow.id),
 
       env.DB.prepare(`
-        INSERT INTO order_telegram_links (order_id, telegram_customer_id)
+        INSERT INTO order_telegram_links (
+          order_id,
+          telegram_customer_id
+        )
         SELECT
           telegram_link_tokens.order_id,
           telegram_customers.id
@@ -580,14 +604,17 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
         chatId,
         "Посилання вже використане або термін його дії минув."
       );
+
       return;
     }
 
     const linkedOrder = await env.DB.prepare(`
       SELECT o.order_number, o.status, tc.telegram_id
       FROM order_telegram_links l
-      JOIN telegram_customers tc ON tc.id = l.telegram_customer_id
-      JOIN orders o ON o.id = l.order_id
+      JOIN telegram_customers tc
+        ON tc.id = l.telegram_customer_id
+      JOIN orders o
+        ON o.id = l.order_id
       WHERE l.order_id = ?
       LIMIT 1
     `).bind(tokenRow.order_id).first();
@@ -623,10 +650,16 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
 
 async function showBuyerOrders(env, chatId, telegramId) {
   const result = await env.DB.prepare(`
-    SELECT o.order_number, o.status, o.total_amount, o.created_at
+    SELECT
+      o.order_number,
+      o.status,
+      o.total_amount,
+      o.created_at
     FROM order_telegram_links l
-    JOIN telegram_customers tc ON tc.id = l.telegram_customer_id
-    JOIN orders o ON o.id = l.order_id
+    JOIN telegram_customers tc
+      ON tc.id = l.telegram_customer_id
+    JOIN orders o
+      ON o.id = l.order_id
     WHERE tc.telegram_id = ?
     ORDER BY o.id DESC
     LIMIT 20
@@ -640,6 +673,7 @@ async function showBuyerOrders(env, chatId, telegramId) {
       chatId,
       "Поки що немає прив'язаних замовлень.\n\nПісля покупки відкрийте посилання для Telegram-прив'язки на сайті."
     );
+
     return;
   }
 
@@ -662,7 +696,12 @@ async function showBuyerStatuses(env, chatId, telegramId) {
 
 /* -------------------- BUYER SUPPORT -------------------- */
 
-async function handleBuyerSupport(env, chatId, telegramUser, messageText) {
+async function handleBuyerSupport(
+  env,
+  chatId,
+  telegramUser,
+  messageText
+) {
   const adminChat = env.TELEGRAM_CHAT_ID;
 
   if (!adminChat) {
@@ -671,13 +710,19 @@ async function handleBuyerSupport(env, chatId, telegramUser, messageText) {
       chatId,
       "💬 Підтримка тимчасово недоступна. Спробуйте написати пізніше."
     );
+
     return;
   }
 
   const safeText = cleanText(messageText, 1500);
 
   if (!safeText) {
-    await sendBuyerMenu(env, chatId, "Напишіть своє повідомлення звичайним текстом.");
+    await sendBuyerMenu(
+      env,
+      chatId,
+      "Напишіть своє повідомлення звичайним текстом."
+    );
+
     return;
   }
 
@@ -696,6 +741,7 @@ async function handleBuyerSupport(env, chatId, telegramUser, messageText) {
       chatId,
       "Спочатку прив'яжіть покупку через посилання з сайту Tanuki Shop."
     );
+
     return;
   }
 
@@ -703,13 +749,19 @@ async function handleBuyerSupport(env, chatId, telegramUser, messageText) {
     await ensureSupportTables(env);
 
     const customerName = telegramDisplayName(telegramUser);
+
     const supportChatId = await getOrCreateSupportChat(
       env,
       telegramId,
       customerName
     );
 
-    await saveSupportMessage(env, supportChatId, "buyer", safeText);
+    await saveSupportMessage(
+      env,
+      supportChatId,
+      "buyer",
+      safeText
+    );
 
     await telegramCall(env, "sendMessage", {
       chat_id: adminChat,
@@ -747,6 +799,7 @@ async function handleBuyerSupport(env, chatId, telegramUser, messageText) {
 
 async function handleAdminSupportReply(env, message) {
   const expectedAdmin = String(env.TELEGRAM_CHAT_ID || "");
+
   if (!expectedAdmin) return false;
 
   const actualChat = String(message.chat?.id || "");
@@ -767,7 +820,6 @@ async function handleAdminSupportReply(env, message) {
     message.reply_to_message.caption ||
     "";
 
-  // Знаходимо і Telegram ID покупця, і номер конкретного звернення.
   const telegramMatch = originalText.match(/Telegram ID:\s*(\d+)/);
   const ticketMatch = originalText.match(/Звернення №\s*(\d+)/i);
 
@@ -783,13 +835,13 @@ async function handleAdminSupportReply(env, message) {
       expectedAdmin,
       "Напишіть звичайний текст відповіді на повідомлення покупця."
     );
+
     return true;
   }
 
   try {
     await ensureSupportTables(env);
 
-    // Важливо: шукаємо саме те звернення, на повідомлення якого відповіли.
     const chat = await env.DB.prepare(`
       SELECT id, telegram_id, status
       FROM support_chats
@@ -804,6 +856,7 @@ async function handleAdminSupportReply(env, message) {
         expectedAdmin,
         "❌ Звернення не знайдено. Перевірте, на яке повідомлення ви відповідаєте."
       );
+
       return true;
     }
 
@@ -813,6 +866,7 @@ async function handleAdminSupportReply(env, message) {
         expectedAdmin,
         `⚠️ Звернення №${supportChatId} вже закрите. Відповідь не надіслана.`
       );
+
       return true;
     }
 
@@ -822,7 +876,12 @@ async function handleAdminSupportReply(env, message) {
       `🦝 Tanuki Shop — відповідь підтримки\n\n${answer}`
     );
 
-    await saveSupportMessage(env, chat.id, "admin", answer);
+    await saveSupportMessage(
+      env,
+      chat.id,
+      "admin",
+      answer
+    );
 
     await sendBuyerMessage(
       env,
@@ -856,7 +915,12 @@ async function handleBuyerMessage(env, message) {
     const payload = text.split(/\s+/, 2)[1] || "";
 
     if (payload) {
-      await linkTelegramOrder(env, chatId, telegramUser, payload);
+      await linkTelegramOrder(
+        env,
+        chatId,
+        telegramUser,
+        payload
+      );
     } else {
       await sendBuyerMenu(
         env,
@@ -864,6 +928,7 @@ async function handleBuyerMessage(env, message) {
         "Вітаємо в Tanuki Shop! 🦝\n\nТут ви можете переглядати свої замовлення та отримувати сповіщення."
       );
     }
+
     return;
   }
 
@@ -888,11 +953,14 @@ async function handleBuyerMessage(env, message) {
       chatId,
       "💬 Напишіть своє запитання звичайним повідомленням у цей чат. Ми передамо його підтримці."
     );
+
     return;
   }
 
   if (text.startsWith("/support")) {
-    const supportText = text.replace(/^\/support(?:@\w+)?\s*/i, "").trim();
+    const supportText = text
+      .replace(/^\/support(?:@\w+)?\s*/i, "")
+      .trim();
 
     await handleBuyerSupport(
       env,
@@ -900,6 +968,7 @@ async function handleBuyerMessage(env, message) {
       telegramUser,
       supportText
     );
+
     return;
   }
 
@@ -911,7 +980,13 @@ async function handleBuyerMessage(env, message) {
   `).bind(String(telegramUser.id)).first();
 
   if (linkedCustomer && text && !text.startsWith("/")) {
-    await handleBuyerSupport(env, chatId, telegramUser, text);
+    await handleBuyerSupport(
+      env,
+      chatId,
+      telegramUser,
+      text
+    );
+
     return;
   }
 
@@ -950,12 +1025,18 @@ async function handleTelegramWebhook(request, env) {
   const update = await readJson(request);
 
   if (!update) {
-    return json({ ok: false, error: "Invalid JSON." }, 400);
+    return json({
+      ok: false,
+      error: "Invalid JSON."
+    }, 400);
   }
 
   try {
     if (update.message) {
-      const handled = await handleAdminSupportReply(env, update.message);
+      const handled = await handleAdminSupportReply(
+        env,
+        update.message
+      );
 
       if (!handled) {
         await handleBuyerMessage(env, update.message);
@@ -965,9 +1046,13 @@ async function handleTelegramWebhook(request, env) {
     }
 
     const callback = update.callback_query;
-    if (!callback) return json({ ok: true });
+
+    if (!callback) {
+      return json({ ok: true });
+    }
 
     const callbackData = cleanText(callback.data, 100);
+
     const match = callbackData.match(
       /^tanuki:(\d+):(confirmed|shipped|cancelled)$/
     );
@@ -983,6 +1068,7 @@ async function handleTelegramWebhook(request, env) {
 
     const orderId = Number(match[1]);
     const newStatus = match[2];
+
     const expectedChat = String(env.TELEGRAM_CHAT_ID || "");
     const actualChat = String(callback.message?.chat?.id || "");
     const actualUser = String(callback.from?.id || "");
@@ -1025,7 +1111,11 @@ async function handleTelegramWebhook(request, env) {
         WHERE id = ?
       `).bind(newStatus, orderId).run();
 
-      await notifyBuyerOrderStatus(env, orderId, newStatus);
+      await notifyBuyerOrderStatus(
+        env,
+        orderId,
+        newStatus
+      );
     }
 
     await telegramCall(env, "answerCallbackQuery", {
@@ -1045,8 +1135,12 @@ async function handleTelegramWebhook(request, env) {
       message_id: callback.message.message_id,
       text: newText,
       parse_mode: "HTML",
-      reply_markup: { inline_keyboard: [] }
+      reply_markup: {
+        inline_keyboard: []
+      }
     });
+
+    return json({ ok: true });
   } catch (error) {
     console.error("Telegram webhook error:", error.message);
 
@@ -1057,9 +1151,13 @@ async function handleTelegramWebhook(request, env) {
         show_alert: true
       }).catch(() => {});
     }
-  }
 
-  return json({ ok: true });
+    // Повертаємо помилку, щоб Telegram міг повторити доставку.
+    return json({
+      ok: false,
+      error: "Webhook processing failed."
+    }, 500);
+  }
 }
 
 /* -------------------- HEALTH CHECK -------------------- */
@@ -1090,30 +1188,43 @@ async function createOrder(request, env) {
   const body = await readJson(request);
 
   if (!body || typeof body !== "object") {
-    return json({ ok: false, error: "Некоректні дані замовлення." }, 400);
+    return json({
+      ok: false,
+      error: "Некоректні дані замовлення."
+    }, 400);
   }
 
   const customerName = cleanText(
-    body.customerName || body.customer_name || body.name, 120
+    body.customerName || body.customer_name || body.name,
+    120
   );
 
   const customerPhone = cleanText(
-    body.customerPhone || body.customer_phone || body.phone, 50
+    body.customerPhone || body.customer_phone || body.phone,
+    50
   );
 
   const customerCity = cleanText(
-    body.customerCity || body.customer_city || body.city, 120
+    body.customerCity || body.customer_city || body.city,
+    120
   );
 
   const customerAddress = cleanText(
-    body.customerAddress || body.customer_address || body.address, 300
+    body.customerAddress || body.customer_address || body.address,
+    300
   );
 
   const customerComment = cleanText(
-    body.customerComment || body.customer_comment || body.comment, 1000
+    body.customerComment || body.customer_comment || body.comment,
+    1000
   );
 
-  if (!customerName || !customerPhone || !customerCity || !customerAddress) {
+  if (
+    !customerName ||
+    !customerPhone ||
+    !customerCity ||
+    !customerAddress
+  ) {
     return json({
       ok: false,
       error: "Заповніть ім'я, телефон, місто та адресу."
@@ -1121,11 +1232,17 @@ async function createOrder(request, env) {
   }
 
   if (!Array.isArray(body.items) || body.items.length === 0) {
-    return json({ ok: false, error: "Кошик порожній." }, 400);
+    return json({
+      ok: false,
+      error: "Кошик порожній."
+    }, 400);
   }
 
   if (body.items.length > 30) {
-    return json({ ok: false, error: "Забагато позицій у замовленні." }, 400);
+    return json({
+      ok: false,
+      error: "Забагато позицій у замовленні."
+    }, 400);
   }
 
   const orderItems = [];
@@ -1135,7 +1252,6 @@ async function createOrder(request, env) {
     const productId = cleanText(item?.id, 100);
     const quantity = Number(item?.quantity);
 
-    // Перевіряємо власні ключі каталогу, а не властивості прототипу.
     if (!Object.hasOwn(PRODUCTS, productId)) {
       return json({
         ok: false,
@@ -1145,14 +1261,24 @@ async function createOrder(request, env) {
 
     const product = PRODUCTS[productId];
 
-    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) {
-      return json({ ok: false, error: "Некоректна кількість товару." }, 400);
+    if (
+      !Number.isSafeInteger(quantity) ||
+      quantity < 1 ||
+      quantity > 99
+    ) {
+      return json({
+        ok: false,
+        error: "Некоректна кількість товару."
+      }, 400);
     }
 
     const lineTotal = product.price * quantity;
 
     if (!Number.isSafeInteger(lineTotal)) {
-      return json({ ok: false, error: "Некоректна сума замовлення." }, 400);
+      return json({
+        ok: false,
+        error: "Некоректна сума замовлення."
+      }, 400);
     }
 
     totalAmount += lineTotal;
@@ -1165,8 +1291,14 @@ async function createOrder(request, env) {
     });
   }
 
-  if (!Number.isSafeInteger(totalAmount) || totalAmount <= 0) {
-    return json({ ok: false, error: "Некоректна сума замовлення." }, 400);
+  if (
+    !Number.isSafeInteger(totalAmount) ||
+    totalAmount <= 0
+  ) {
+    return json({
+      ok: false,
+      error: "Некоректна сума замовлення."
+    }, 400);
   }
 
   const orderNumber = generateOrderNumber();
@@ -1204,7 +1336,12 @@ async function createOrder(request, env) {
             price,
             quantity
           )
-          SELECT id, ?, ?, ?, ?
+          SELECT
+            id,
+            ?,
+            ?,
+            ?,
+            ?
           FROM orders
           WHERE order_number = ?
         `).bind(
@@ -1249,7 +1386,10 @@ async function createOrder(request, env) {
       telegramLink =
         `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${rawToken}`;
     } catch (error) {
-      console.error("Telegram link creation error:", error.message);
+      console.error(
+        "Telegram link creation error:",
+        error.message
+      );
     }
 
     const order = {
@@ -1301,7 +1441,10 @@ async function adminLogin(request, env) {
   const password = cleanText(body?.password, 500);
 
   if (!password || password !== env.ADMIN_PASSWORD) {
-    return json({ ok: false, error: "Неправильний пароль." }, 401);
+    return json({
+      ok: false,
+      error: "Неправильний пароль."
+    }, 401);
   }
 
   const session = await createAdminSession(env.ADMIN_PASSWORD);
@@ -1348,7 +1491,11 @@ async function adminGetOrders(env) {
 
     for (const order of orders.results || []) {
       const items = await env.DB.prepare(`
-        SELECT product_id, product_name, price, quantity
+        SELECT
+          product_id,
+          product_name,
+          price,
+          quantity
         FROM order_items
         WHERE order_id = ?
       `).bind(order.id).all();
@@ -1359,7 +1506,10 @@ async function adminGetOrders(env) {
       });
     }
 
-    return json({ ok: true, orders: result });
+    return json({
+      ok: true,
+      orders: result
+    });
   } catch (error) {
     console.error("Admin orders error:", error.message);
 
@@ -1375,7 +1525,10 @@ async function adminUpdateOrder(request, env, orderId) {
   const status = cleanText(body?.status, 30);
 
   if (!ORDER_STATUSES.includes(status)) {
-    return json({ ok: false, error: "Невідомий статус замовлення." }, 400);
+    return json({
+      ok: false,
+      error: "Невідомий статус замовлення."
+    }, 400);
   }
 
   try {
@@ -1387,7 +1540,10 @@ async function adminUpdateOrder(request, env, orderId) {
     `).bind(orderId).first();
 
     if (!current) {
-      return json({ ok: false, error: "Замовлення не знайдено." }, 404);
+      return json({
+        ok: false,
+        error: "Замовлення не знайдено."
+      }, 404);
     }
 
     if (current.status !== status) {
@@ -1397,7 +1553,11 @@ async function adminUpdateOrder(request, env, orderId) {
         WHERE id = ?
       `).bind(status, orderId).run();
 
-      await notifyBuyerOrderStatus(env, orderId, status);
+      await notifyBuyerOrderStatus(
+        env,
+        orderId,
+        status
+      );
     }
 
     return json({
@@ -1482,7 +1642,13 @@ async function adminGetSupportMessages(env, chatId) {
     await ensureSupportTables(env);
 
     const chat = await env.DB.prepare(`
-      SELECT id, telegram_id, customer_name, status, created_at, updated_at
+      SELECT
+        id,
+        telegram_id,
+        customer_name,
+        status,
+        created_at,
+        updated_at
       FROM support_chats
       WHERE id = ?
       LIMIT 1
@@ -1515,7 +1681,11 @@ async function adminGetSupportMessages(env, chatId) {
     ).run();
 
     const messages = await env.DB.prepare(`
-      SELECT id, sender, message_text, created_at
+      SELECT
+        id,
+        sender,
+        message_text,
+        created_at
       FROM support_messages
       WHERE chat_id = ?
       ORDER BY id ASC
@@ -1578,7 +1748,12 @@ async function adminReplySupport(request, env, chatId) {
       `🦝 Tanuki Shop — відповідь підтримки\n\n${answer}`
     );
 
-    await saveSupportMessage(env, chatId, "admin", answer);
+    await saveSupportMessage(
+      env,
+      chatId,
+      "admin",
+      answer
+    );
 
     return json({
       ok: true,
@@ -1711,10 +1886,16 @@ export default {
         }
 
         // Одноразове налаштування Telegram webhook.
-        if (
-          path === "/api/admin/telegram/webhook/setup" &&
-          method === "POST"
-        ) {
+        if (path === "/api/admin/telegram/webhook/setup") {
+          if (method !== "POST") {
+            return json({
+              ok: false,
+              error: "Для налаштування webhook використовуйте POST."
+            }, 405, {
+              Allow: "POST"
+            });
+          }
+
           try {
             await configureTelegramWebhook(env);
 
