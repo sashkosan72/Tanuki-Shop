@@ -5,758 +5,730 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#fff0f5">
-  <meta name="description" content="Tanuki Shop — магазин kawaii та anime товарів.">
-  <title>Tanuki Shop — Kawaii & Anime Store</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <meta name="description" content="Tanuki Shop — kawaii та anime товари, аксесуари, плюшеві іграшки та подарунки.">
+  <title>Tanuki Shop — Kawaii &amp; Anime Store</title>
   <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
 
-<header class="site-header">
-  <div class="container header-inner">
-    <a href="#" class="logo">🦝 <span>Tanuki Shop</span></a>
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <a href="#" class="logo">🦝 Tanuki Shop</a>
 
-    <nav class="main-nav">
-      <a href="#catalog">Каталог</a>
-      <a href="#new">Категорії</a>
-      <a href="#about">Про нас</a>
-    </nav>
+      <nav class="main-nav">
+        <a href="#catalog">Каталог</a>
+        <a href="#new">Категорії</a>
+        <a href="#about">Про нас</a>
+      </nav>
 
-    <button class="cart-button" id="cartButton" type="button">
-      🛒 Кошик <span id="cartCount">0</span>
-    </button>
-  </div>
-</header>
+      <button class="cart-button" id="cartButton" type="button">
+        🛒 Кошик <span id="cartCount">0</span>
+      </button>
+    </div>
+  </header>
 
-<main>
+  <main>
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="container hero-content">
-      <div class="hero-text">
-        <span class="hero-badge">✨ Kawaii • Anime • Gifts</span>
-        <h1>Ласкаво просимо до <span>Tanuki Shop</span></h1>
-        <p>
-          Kawaii та anime товари, аксесуари,
-          плюшеві іграшки та милі подарунки
-          для тих, хто любить японську культуру.
+    <!-- HERO -->
+    <section class="hero">
+      <div class="container hero-content">
+        <div class="hero-text">
+          <span class="hero-badge">✨ Kawaii • Anime • Gifts</span>
+
+          <h1>
+            Ласкаво просимо до
+            <span>Tanuki Shop</span>
+          </h1>
+
+          <p>
+            Kawaii та anime товари, аксесуари,
+            плюшеві іграшки та милі подарунки
+            для тих, хто любить японську культуру.
+          </p>
+
+          <a href="#catalog" class="hero-button">
+            Перейти до каталогу →
+          </a>
+        </div>
+
+        <div class="hero-character">🦝</div>
+      </div>
+    </section>
+
+    <!-- CATEGORIES -->
+    <section class="categories" id="new">
+      <div class="container">
+
+        <div class="section-heading">
+          <span>🌸</span>
+          <h2>Категорії</h2>
+          <p>Обери те, що тобі подобається</p>
+        </div>
+
+        <div class="category-grid">
+
+          <button class="category-card" type="button" data-category="Аксесуари">
+            🎀
+            <strong>Аксесуари</strong>
+            <span>Милі деталі</span>
+          </button>
+
+          <button class="category-card" type="button" data-category="Плюшеві іграшки">
+            🧸
+            <strong>Плюшеві іграшки</strong>
+            <span>Kawaii друзі</span>
+          </button>
+
+          <button class="category-card" type="button" data-category="Одяг">
+            👕
+            <strong>Одяг</strong>
+            <span>Anime style</span>
+          </button>
+
+          <button class="category-card" type="button" data-category="Подарунки">
+            🎁
+            <strong>Подарунки</strong>
+            <span>Для друзів</span>
+          </button>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- CATALOG -->
+    <section class="products-section" id="catalog">
+      <div class="container">
+
+        <div class="section-heading">
+          <span>🛍️</span>
+          <h2>Каталог товарів</h2>
+          <p>Знайди щось особливе для себе 💖</p>
+        </div>
+
+        <div class="catalog-tools">
+          <input
+            type="search"
+            id="productSearch"
+            placeholder="🔎 Пошук товарів..."
+            aria-label="Пошук товарів"
+          >
+
+          <select id="categoryFilter" aria-label="Фільтр категорій">
+            <option value="all">Усі категорії</option>
+            <option value="Аксесуари">Аксесуари</option>
+            <option value="Плюшеві іграшки">Плюшеві іграшки</option>
+            <option value="Одяг">Одяг</option>
+            <option value="Подарунки">Подарунки</option>
+          </select>
+        </div>
+
+        <div class="products-grid" id="productsGrid">
+
+          <!-- PRODUCT 1 -->
+          <article class="product-card"
+            data-id="tanuki-plush"
+            data-name="Tanuki Plush"
+            data-price="499"
+            data-category="Плюшеві іграшки"
+            data-icon="🦝">
+
+            <div class="product-image">🦝</div>
+
+            <div class="product-info">
+              <span class="product-category">Плюшеві іграшки</span>
+
+              <h3>Tanuki Plush</h3>
+
+              <p>
+                Милий плюшевий танукі для колекції
+                або подарунка.
+              </p>
+
+              <div class="product-bottom">
+                <strong class="product-price">499 ₴</strong>
+
+                <button class="add-button" type="button"
+                  onclick="addToCart('tanuki-plush', 'Tanuki Plush', 499, '🦝')">
+                  Додати
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <!-- PRODUCT 2 -->
+          <article class="product-card"
+            data-id="kawaii-stickers"
+            data-name="Kawaii Sticker Pack"
+            data-price="149"
+            data-category="Аксесуари"
+            data-icon="🌸">
+
+            <div class="product-image">🌸</div>
+
+            <div class="product-info">
+              <span class="product-category">Аксесуари</span>
+
+              <h3>Kawaii Sticker Pack</h3>
+
+              <p>
+                Набір милих стікерів у kawaii стилі.
+              </p>
+
+              <div class="product-bottom">
+                <strong class="product-price">149 ₴</strong>
+
+                <button class="add-button" type="button"
+                  onclick="addToCart('kawaii-stickers', 'Kawaii Sticker Pack', 149, '🌸')">
+                  Додати
+                </button>
+              </div>
+            </div>
+          </article>
+
+          <!-- PRODUCT 3 -->
+          <article class="product-card"
+            data-id="kawaii-accessory"
+            data-name="Kawaii Accessory"
+            data-price="299"
+            data-category="Аксесуари"
+            data-icon="🎀">
+
+            <div class="product-image">🎀</div>
+
+            <div class="product-info">
+              <span class="product-category">Аксесуари</span>
+
+              <h3>Kawaii Accessory</h3>
+
+              <p>
+                Стильний kawaii аксесуар для
+                повсякденного образу.
+              </p>
+
+              <div class="product-bottom">
+                <strong class="product-price">299 ₴</strong>
+
+                <button class="add-button" type="button"
+                  onclick="addToCart('kawaii-accessory', 'Kawaii Accessory', 299, '🎀')">
+                  Додати
+                </button>
+              </div>
+            </div>
+          </article>
+
+        </div>
+
+        <p id="noProducts" hidden>
+          🦝 На жаль, товарів не знайдено.
         </p>
-        <a href="#catalog" class="hero-button">
-          Перейти до каталогу →
-        </a>
-      </div>
-
-      <div class="hero-character">🦝</div>
-    </div>
-  </section>
-
-  <!-- CATEGORIES -->
-  <section class="categories" id="new">
-    <div class="container">
-      <div class="section-heading">
-        <span>🌸</span>
-        <h2>Категорії</h2>
-        <p>Обери те, що тобі подобається</p>
-      </div>
-
-      <div class="category-grid">
-        <button class="category-card" type="button" data-category="Аксесуари">
-          🎀
-          <strong>Аксесуари</strong>
-          <span>Милі деталі</span>
-        </button>
-
-        <button class="category-card" type="button" data-category="Плюшеві іграшки">
-          🧸
-          <strong>Плюшеві іграшки</strong>
-          <span>Kawaii друзі</span>
-        </button>
-
-        <button class="category-card" type="button" data-category="Одяг">
-          👕
-          <strong>Одяг</strong>
-          <span>Anime style</span>
-        </button>
-
-        <button class="category-card" type="button" data-category="Подарунки">
-          🎁
-          <strong>Подарунки</strong>
-          <span>Для друзів</span>
-        </button>
-      </div>
-    </div>
-  </section>
-
-  <!-- CATALOG -->
-  <section class="products-section" id="catalog">
-    <div class="container">
-
-      <div class="section-heading">
-        <span>🛍️</span>
-        <h2>Каталог товарів</h2>
-        <p>Знайди щось особливе для себе 💖</p>
-      </div>
-
-      <div class="catalog-tools">
-        <input
-          type="search"
-          id="productSearch"
-          placeholder="🔎 Пошук товарів..."
-          aria-label="Пошук товарів"
-        >
-
-        <select id="categoryFilter" aria-label="Фільтр категорій">
-          <option value="all">Усі категорії</option>
-          <option value="Аксесуари">Аксесуари</option>
-          <option value="Плюшеві іграшки">Плюшеві іграшки</option>
-          <option value="Одяг">Одяг</option>
-          <option value="Подарунки">Подарунки</option>
-        </select>
-      </div>
-
-      <div class="products-grid" id="productsGrid">
-
-        <article class="product-card"
-          data-id="tanuki-plush"
-          data-name="Tanuki Plush"
-          data-price="499"
-          data-category="Плюшеві іграшки"
-          data-icon="🦝">
-
-          <div class="product-image">🦝</div>
-          <div class="product-info">
-            <span class="product-category">Плюшеві іграшки</span>
-            <h3>Tanuki Plush</h3>
-            <p>Милий плюшевий танукі для колекції або подарунка.</p>
-            <div class="product-bottom">
-              <strong class="product-price">499 ₴</strong>
-              <button class="add-button" type="button"
-                onclick="addToCart('tanuki-plush', 'Tanuki Plush', 499, '🦝')">
-                Додати
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <article class="product-card"
-          data-id="kawaii-stickers"
-          data-name="Kawaii Sticker Pack"
-          data-price="149"
-          data-category="Аксесуари"
-          data-icon="🌸">
-
-          <div class="product-image">🌸</div>
-          <div class="product-info">
-            <span class="product-category">Аксесуари</span>
-            <h3>Kawaii Sticker Pack</h3>
-            <p>Набір милих стікерів у kawaii стилі.</p>
-            <div class="product-bottom">
-              <strong class="product-price">149 ₴</strong>
-              <button class="add-button" type="button"
-                onclick="addToCart('kawaii-stickers', 'Kawaii Sticker Pack', 149, '🌸')">
-                Додати
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <article class="product-card"
-          data-id="kawaii-accessory"
-          data-name="Kawaii Accessory"
-          data-price="299"
-          data-category="Аксесуари"
-          data-icon="🎀">
-
-          <div class="product-image">🎀</div>
-          <div class="product-info">
-            <span class="product-category">Аксесуари</span>
-            <h3>Kawaii Accessory</h3>
-            <p>Стильний kawaii аксесуар для повсякденного образу.</p>
-            <div class="product-bottom">
-              <strong class="product-price">299 ₴</strong>
-              <button class="add-button" type="button"
-                onclick="addToCart('kawaii-accessory', 'Kawaii Accessory', 299, '🎀')">
-                Додати
-              </button>
-            </div>
-          </div>
-        </article>
 
       </div>
+    </section>
 
-      <p id="noProducts" hidden>
-        🦝 На жаль, товарів не знайдено.
-      </p>
-    </div>
-  </section>
+    <!-- ABOUT -->
+    <section class="about-section" id="about">
+      <div class="container about-content">
 
-  <!-- ABOUT -->
-  <section class="about-section" id="about">
-    <div class="container about-content">
-      <div class="about-icon">🦝</div>
+        <div class="about-icon">🦝</div>
+
+        <div>
+          <h2>Про Tanuki Shop</h2>
+
+          <h3>Маленький магазин з великим kawaii настроєм 💖</h3>
+
+          <p>
+            Tanuki Shop створений для людей,
+            які люблять anime, kawaii-культуру
+            та милі речі.
+          </p>
+
+          <p>
+            Ми поступово розширюватимемо каталог,
+            додаватимемо нові товари, способи оплати
+            та доставку.
+          </p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <div class="container footer-inner">
+
       <div>
-        <span class="hero-badge">Про Tanuki Shop</span>
-        <h2>Маленький магазин з великим kawaii настроєм 💖</h2>
-        <p>
-          Tanuki Shop створений для людей,
-          які люблять anime, kawaii-культуру та милі речі.
-        </p>
-        <p>
-          Ми поступово розширюватимемо каталог,
-          додаватимемо нові товари, способи оплати та доставку.
-        </p>
-      </div>
-    </div>
-  </section>
-
-</main>
-
-<footer class="site-footer">
-  <div class="container footer-inner">
-    <div>
-      <strong>🦝 Tanuki Shop</strong>
-      <p>Kawaii & Anime Store</p>
-    </div>
-    <p>© 2026 Tanuki Shop</p>
-  </div>
-</footer>
-
-<!-- CART MODAL -->
-<div id="cartModal" class="cart-modal" aria-hidden="true">
-  <div class="cart-overlay" id="cartOverlay"></div>
-
-  <div class="cart-window" role="dialog" aria-modal="true" aria-labelledby="cartTitle">
-    <div class="cart-header">
-      <h2 id="cartTitle">🛒 Ваш кошик</h2>
-      <button id="closeCart" type="button" aria-label="Закрити кошик">✕</button>
-    </div>
-
-    <div id="cartItems" class="cart-items"></div>
-
-    <div id="emptyCart" class="empty-cart">
-      🦝
-      <h3>Кошик порожній</h3>
-      <p>Додайте щось kawaii з каталогу 💖</p>
-    </div>
-
-    <div id="cartFooter" class="cart-footer">
-      <div class="cart-total">
-        <span>Разом:</span>
-        <strong id="cartTotal">0 ₴</strong>
+        <strong>🦝 Tanuki Shop</strong>
+        <p>Kawaii &amp; Anime Store</p>
       </div>
 
-      <button id="clearCart" class="clear-cart" type="button">
-        🗑️ Очистити кошик
-      </button>
+      <p>© 2026 Tanuki Shop</p>
 
-      <button id="checkoutButton" class="checkout-button" type="button">
-        📦 Оформити замовлення
-      </button>
+    </div>
+  </footer>
+
+  <!-- CART MODAL -->
+  <div class="cart-modal" id="cartModal">
+
+    <div class="cart-overlay" id="cartOverlay"></div>
+
+    <div class="cart-window">
+
+      <div class="cart-header">
+        <h2>🛒 Ваш кошик</h2>
+        <button id="closeCart" type="button" aria-label="Закрити">✕</button>
+      </div>
+
+      <div id="cartItems" class="cart-items"></div>
+
+      <div id="emptyCart" class="empty-cart">
+        🦝
+        <h3>Кошик порожній</h3>
+        <p>Додайте щось kawaii з каталогу 💖</p>
+      </div>
+
+      <div id="cartFooter" class="cart-footer">
+
+        <div class="cart-total">
+          <span>Разом:</span>
+          <strong id="cartTotal">0 ₴</strong>
+        </div>
+
+        <button id="clearCart" class="clear-cart" type="button">
+          🗑️ Очистити кошик
+        </button>
+
+        <button id="checkoutButton" class="checkout-button" type="button">
+          📦 Оформити замовлення
+        </button>
+
+      </div>
     </div>
   </div>
-</div>
 
-<!-- CHECKOUT MODAL -->
-<div id="checkoutModal" class="checkout-modal" aria-hidden="true">
-  <div class="checkout-overlay" id="checkoutOverlay"></div>
+  <!-- CHECKOUT MODAL -->
+  <div class="checkout-modal" id="checkoutModal">
 
-  <div class="checkout-window" role="dialog" aria-modal="true" aria-labelledby="checkoutTitle">
-    <div class="checkout-header">
-      <h2 id="checkoutTitle">📦 Оформлення замовлення</h2>
-      <button id="closeCheckout" type="button" aria-label="Закрити">✕</button>
+    <div class="checkout-overlay" id="checkoutOverlay"></div>
+
+    <div class="checkout-window">
+
+      <div class="checkout-header">
+        <h2>📦 Оформлення замовлення</h2>
+        <button id="closeCheckout" type="button" aria-label="Закрити">✕</button>
+      </div>
+
+      <form id="checkoutForm">
+
+        <label>
+          Ваше ім'я
+          <input
+            type="text"
+            id="customerName"
+            required
+            placeholder="Ваше ім'я"
+            autocomplete="name"
+            maxlength="100"
+          >
+        </label>
+
+        <label>
+          Номер телефону
+          <input
+            type="tel"
+            id="customerPhone"
+            required
+            placeholder="+380..."
+            autocomplete="tel"
+            maxlength="30"
+          >
+        </label>
+
+        <label>
+          Місто
+          <input
+            type="text"
+            id="customerCity"
+            required
+            placeholder="Ваше місто"
+            autocomplete="address-level2"
+            maxlength="100"
+          >
+        </label>
+
+        <label>
+          Адреса / відділення
+          <input
+            type="text"
+            id="customerAddress"
+            required
+            placeholder="Номер відділення або адреса"
+            maxlength="200"
+          >
+        </label>
+
+        <label>
+          Коментар до замовлення
+          <textarea
+            id="customerComment"
+            rows="3"
+            placeholder="Наприклад: зателефонуйте перед відправкою"
+            maxlength="1000"
+          ></textarea>
+        </label>
+
+        <div class="checkout-summary">
+          <span>Сума замовлення:</span>
+          <strong id="checkoutTotal">0 ₴</strong>
+        </div>
+
+        <button type="submit" class="checkout-submit">
+          ✅ Підтвердити замовлення
+        </button>
+
+      </form>
     </div>
-
-    <form id="checkoutForm">
-      <label>
-        Ваше ім'я
-        <input type="text" id="customerName" required
-          placeholder="Ваше ім'я" autocomplete="name" maxlength="100">
-      </label>
-
-      <label>
-        Номер телефону
-        <input type="tel" id="customerPhone" required
-          placeholder="+380..." autocomplete="tel" maxlength="30">
-      </label>
-
-      <label>
-        Місто
-        <input type="text" id="customerCity" required
-          placeholder="Ваше місто" autocomplete="address-level2" maxlength="100">
-      </label>
-
-      <label>
-        Адреса / відділення
-        <input type="text" id="customerAddress" required
-          placeholder="Номер відділення або адреса" maxlength="200">
-      </label>
-
-      <label>
-        Коментар до замовлення
-        <textarea id="customerComment" rows="3"
-          placeholder="Наприклад: зателефонуйте перед відправкою"
-          maxlength="1000"></textarea>
-      </label>
-
-      <div class="checkout-summary">
-        <span>Сума замовлення:</span>
-        <strong id="checkoutTotal">0 ₴</strong>
-      </div>
-
-      <button type="submit" class="checkout-submit">
-        ✅ Підтвердити замовлення
-      </button>
-    </form>
   </div>
-</div>
 
-<!-- KEYCRM CHAT -->
-<script>
-(function(w, d, t, u, c) {
-  var s = d.createElement(t);
-  var j = d.getElementsByTagName(t)[0];
+  <!-- JAVASCRIPT -->
+  <script>
+    const CART_KEY = 'tanukiShopCart';
 
-  s.src = u;
-  s.async = true;
-  s.defer = true;
-
-  s.onload = function() {
-    if (w.KeyCRM && typeof w.KeyCRM.render === "function") {
-      w.KeyCRM.render(c);
-    }
-  };
-
-  j.parentNode.insertBefore(s, j);
-})(
-  window,
-  document,
-  "script",
-  "https://chat.key.live/bundles/widget.min.js",
-  {
-    token: "CURRENT_KEYCRM_TOKEN"
-  }
-);
-</script>
-
-<!-- STORE SCRIPT -->
-<script>
-"use strict";
-
-let cart = [];
-
-try {
-  const savedCart = localStorage.getItem("tanukiShopCart");
-
-  if (savedCart) {
-    const parsed = JSON.parse(savedCart);
-
-    if (Array.isArray(parsed)) {
-      cart = parsed.filter(function(item) {
-        return item &&
-          typeof item.id === "string" &&
-          typeof item.name === "string" &&
-          Number.isSafeInteger(item.price) &&
-          item.price >= 0 &&
-          Number.isSafeInteger(item.quantity) &&
-          item.quantity > 0 &&
-          item.quantity <= 99 &&
-          typeof item.icon === "string";
-      });
-    }
-  }
-} catch (error) {
-  console.error("Не вдалося завантажити кошик:", error);
-  cart = [];
-}
-
-const cartButton = document.getElementById("cartButton");
-const cartCount = document.getElementById("cartCount");
-const cartModal = document.getElementById("cartModal");
-const cartOverlay = document.getElementById("cartOverlay");
-const closeCart = document.getElementById("closeCart");
-const cartItems = document.getElementById("cartItems");
-const emptyCart = document.getElementById("emptyCart");
-const cartFooter = document.getElementById("cartFooter");
-const cartTotal = document.getElementById("cartTotal");
-const clearCart = document.getElementById("clearCart");
-const checkoutButton = document.getElementById("checkoutButton");
-
-const checkoutModal = document.getElementById("checkoutModal");
-const checkoutOverlay = document.getElementById("checkoutOverlay");
-const closeCheckout = document.getElementById("closeCheckout");
-const checkoutForm = document.getElementById("checkoutForm");
-const checkoutTotal = document.getElementById("checkoutTotal");
-
-const productSearch = document.getElementById("productSearch");
-const categoryFilter = document.getElementById("categoryFilter");
-const productsGrid = document.getElementById("productsGrid");
-const noProducts = document.getElementById("noProducts");
-
-function saveCart() {
-  try {
-    localStorage.setItem("tanukiShopCart", JSON.stringify(cart));
-  } catch (error) {
-    console.error("Не вдалося зберегти кошик:", error);
-    alert("Не вдалося зберегти кошик на цьому пристрої.");
-  }
-}
-
-function formatPrice(price) {
-  return new Intl.NumberFormat("uk-UA").format(price) + " ₴";
-}
-
-function getCartTotal() {
-  return cart.reduce(function(total, item) {
-    return total + item.price * item.quantity;
-  }, 0);
-}
-
-function updateCartCount() {
-  const totalQuantity = cart.reduce(function(total, item) {
-    return total + item.quantity;
-  }, 0);
-
-  cartCount.textContent = totalQuantity;
-}
-
-function escapeHtml(value) {
-  const div = document.createElement("div");
-  div.textContent = String(value);
-  return div.innerHTML;
-}
-
-function addToCart(id, name, price, icon) {
-  const existingItem = cart.find(function(item) {
-    return item.id === id;
-  });
-
-  if (existingItem) {
-    if (existingItem.quantity >= 99) {
-      alert("Максимальна кількість одного товару — 99.");
-      return;
-    }
-    existingItem.quantity++;
-  } else {
-    cart.push({
-      id: id,
-      name: name,
-      price: price,
-      icon: icon,
-      quantity: 1
-    });
-  }
-
-  saveCart();
-  renderCart();
-
-  const buttons = document.querySelectorAll(".add-button");
-
-  buttons.forEach(function(button) {
-    if (button.getAttribute("onclick") &&
-        button.getAttribute("onclick").includes(id)) {
-      const originalText = button.textContent;
-      button.textContent = "✓ Додано";
-
-      setTimeout(function() {
-        button.textContent = originalText;
-      }, 1000);
-    }
-  });
-}
-
-function removeFromCart(id) {
-  cart = cart.filter(function(item) {
-    return item.id !== id;
-  });
-
-  saveCart();
-  renderCart();
-}
-
-function changeQuantity(id, amount) {
-  const item = cart.find(function(item) {
-    return item.id === id;
-  });
-
-  if (!item) return;
-
-  item.quantity += amount;
-
-  if (item.quantity <= 0) {
-    removeFromCart(id);
-    return;
-  }
-
-  if (item.quantity > 99) {
-    item.quantity = 99;
-    alert("Максимальна кількість одного товару — 99.");
-  }
-
-  saveCart();
-  renderCart();
-}
-
-function renderCart() {
-  updateCartCount();
-
-  if (cart.length === 0) {
-    cartItems.innerHTML = "";
-    emptyCart.style.display = "block";
-    cartFooter.style.display = "none";
-    cartTotal.textContent = formatPrice(0);
-    checkoutTotal.textContent = formatPrice(0);
-    return;
-  }
-
-  emptyCart.style.display = "none";
-  cartFooter.style.display = "block";
-  cartItems.innerHTML = "";
-
-  cart.forEach(function(item) {
-    const itemElement = document.createElement("div");
-    itemElement.className = "cart-item";
-
-    itemElement.innerHTML = `
-      <div class="cart-item-icon">${escapeHtml(item.icon)}</div>
-      <div class="cart-item-info">
-        <h3>${escapeHtml(item.name)}</h3>
-        <strong>${formatPrice(item.price)}</strong>
-      </div>
-      <div class="cart-item-controls">
-        <button type="button"
-          onclick="changeQuantity('${escapeHtml(item.id)}', -1)"
-          aria-label="Зменшити кількість">−</button>
-        <span>${item.quantity}</span>
-        <button type="button"
-          onclick="changeQuantity('${escapeHtml(item.id)}', 1)"
-          aria-label="Збільшити кількість">+</button>
-      </div>
-      <button class="remove-item" type="button"
-        onclick="removeFromCart('${escapeHtml(item.id)}')"
-        aria-label="Видалити товар">🗑️</button>
-    `;
-
-    cartItems.appendChild(itemElement);
-  });
-
-  const total = getCartTotal();
-  cartTotal.textContent = formatPrice(total);
-  checkoutTotal.textContent = formatPrice(total);
-}
-
-function openCart() {
-  cartModal.classList.add("active");
-  cartModal.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
-  renderCart();
-}
-
-function closeCartWindow() {
-  cartModal.classList.remove("active");
-  cartModal.setAttribute("aria-hidden", "true");
-  document.body.style.overflow = "";
-}
-
-function openCheckout() {
-  if (cart.length === 0) {
-    alert("🛒 Спочатку додайте товар у кошик.");
-    return;
-  }
-
-  closeCartWindow();
-
-  checkoutModal.classList.add("active");
-  checkoutModal.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
-
-  checkoutTotal.textContent = formatPrice(getCartTotal());
-}
-
-function closeCheckoutWindow() {
-  checkoutModal.classList.remove("active");
-  checkoutModal.setAttribute("aria-hidden", "true");
-  document.body.style.overflow = "";
-}
-
-/* CATEGORY AND SEARCH */
-
-function filterProducts() {
-  const query = productSearch.value.trim().toLowerCase();
-  const category = categoryFilter.value;
-
-  const products = productsGrid.querySelectorAll(".product-card");
-  let visibleCount = 0;
-
-  products.forEach(function(product) {
-    const name = product.dataset.name.toLowerCase();
-    const productCategory = product.dataset.category;
-
-    const matchesSearch = name.includes(query);
-    const matchesCategory =
-      category === "all" || productCategory === category;
-
-    const visible = matchesSearch && matchesCategory;
-
-    product.hidden = !visible;
-
-    if (visible) visibleCount++;
-  });
-
-  noProducts.hidden = visibleCount !== 0;
-}
-
-productSearch.addEventListener("input", filterProducts);
-categoryFilter.addEventListener("change", filterProducts);
-
-document.querySelectorAll(".category-card").forEach(function(button) {
-  button.addEventListener("click", function() {
-    categoryFilter.value = button.dataset.category;
-    filterProducts();
-    document.getElementById("catalog").scrollIntoView({
-      behavior: "smooth"
-    });
-  });
-});
-
-/* CART EVENTS */
-
-clearCart.addEventListener("click", function() {
-  if (cart.length === 0) return;
-
-  if (!confirm("Очистити весь кошик?")) return;
-
-  cart = [];
-  saveCart();
-  renderCart();
-});
-
-cartButton.addEventListener("click", openCart);
-closeCart.addEventListener("click", closeCartWindow);
-cartOverlay.addEventListener("click", closeCartWindow);
-
-checkoutButton.addEventListener("click", openCheckout);
-closeCheckout.addEventListener("click", closeCheckoutWindow);
-checkoutOverlay.addEventListener("click", closeCheckoutWindow);
-
-/* ORDER SUBMISSION */
-
-checkoutForm.addEventListener("submit", async function(event) {
-  event.preventDefault();
-
-  if (cart.length === 0) {
-    alert("🛒 Кошик порожній.");
-    return;
-  }
-
-  const submitButton = checkoutForm.querySelector(
-    'button[type="submit"]'
-  );
-
-  const customerName =
-    document.getElementById("customerName").value.trim();
-
-  const customerPhone =
-    document.getElementById("customerPhone").value.trim();
-
-  const customerCity =
-    document.getElementById("customerCity").value.trim();
-
-  const customerAddress =
-    document.getElementById("customerAddress").value.trim();
-
-  const customerComment =
-    document.getElementById("customerComment").value.trim();
-
-  const originalButtonText = submitButton.textContent;
-
-  submitButton.disabled = true;
-  submitButton.textContent = "⏳ Надсилаємо замовлення...";
-
-  try {
-    const response = await fetch("/api/orders", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        customerName: customerName,
-        customerPhone: customerPhone,
-        customerCity: customerCity,
-        customerAddress: customerAddress,
-        customerComment: customerComment,
-        items: cart.map(function(item) {
-          return {
-            id: item.id,
-            quantity: item.quantity
-          };
-        })
-      })
-    });
-
-    let data;
+    let cart = [];
 
     try {
-      data = await response.json();
-    } catch {
-      throw new Error("Сервер повернув некоректну відповідь.");
+      const savedCart = JSON.parse(localStorage.getItem(CART_KEY) || '[]');
+
+      if (Array.isArray(savedCart)) {
+        cart = savedCart.filter(item =>
+          item &&
+          typeof item.id === 'string' &&
+          Number.isInteger(item.quantity) &&
+          item.quantity > 0
+        );
+      }
+    } catch (error) {
+      cart = [];
     }
 
-    if (!response.ok || !data.ok) {
-      throw new Error(
-        data.error || "Не вдалося оформити замовлення."
-      );
+    const cartButton = document.getElementById('cartButton');
+    const cartModal = document.getElementById('cartModal');
+    const cartOverlay = document.getElementById('cartOverlay');
+    const closeCart = document.getElementById('closeCart');
+
+    const checkoutModal = document.getElementById('checkoutModal');
+    const checkoutOverlay = document.getElementById('checkoutOverlay');
+    const closeCheckout = document.getElementById('closeCheckout');
+
+    const cartItems = document.getElementById('cartItems');
+    const emptyCart = document.getElementById('emptyCart');
+    const cartFooter = document.getElementById('cartFooter');
+
+    const cartCount = document.getElementById('cartCount');
+    const cartTotal = document.getElementById('cartTotal');
+    const checkoutTotal = document.getElementById('checkoutTotal');
+
+    const checkoutForm = document.getElementById('checkoutForm');
+    const checkoutButton = document.getElementById('checkoutButton');
+    const clearCartButton = document.getElementById('clearCart');
+
+    const productSearch = document.getElementById('productSearch');
+    const categoryFilter = document.getElementById('categoryFilter');
+
+    function saveCart() {
+      localStorage.setItem(CART_KEY, JSON.stringify(cart));
     }
 
-    alert(
-      "🎉 Замовлення успішно оформлено!\n\n" +
-      "🧾 Номер: " + data.orderNumber + "\n\n" +
-      "💰 Сума: " + formatPrice(data.total) + "\n\n" +
-      "Дякуємо за замовлення! 🦝💖"
-    );
+    function formatPrice(price) {
+      return price.toLocaleString('uk-UA') + ' ₴';
+    }
 
-    cart = [];
-    saveCart();
-    renderCart();
+    function getTotal() {
+      return cart.reduce((sum, item) => {
+        return sum + item.price * item.quantity;
+      }, 0);
+    }
 
-    checkoutForm.reset();
-    closeCheckoutWindow();
+    function updateCart() {
+      const count = cart.reduce((sum, item) => sum + item.quantity, 0);
+      const total = getTotal();
 
-  } catch (error) {
-    console.error("Помилка оформлення замовлення:", error);
+      cartCount.textContent = count;
+      cartTotal.textContent = formatPrice(total);
+      checkoutTotal.textContent = formatPrice(total);
 
-    alert(
-      "❌ Не вдалося оформити замовлення.\n\n" +
-      (error.message || "Перевірте інтернет і спробуйте ще раз.") +
-      "\n\nВаш кошик збережено."
-    );
+      emptyCart.hidden = cart.length > 0;
+      cartFooter.hidden = cart.length === 0;
 
-  } finally {
-    submitButton.disabled = false;
-    submitButton.textContent = originalButtonText;
-  }
-});
+      cartItems.innerHTML = '';
 
-/* ESCAPE KEY */
+      cart.forEach(item => {
+        const element = document.createElement('div');
+        element.className = 'cart-item';
 
-document.addEventListener("keydown", function(event) {
-  if (event.key !== "Escape") return;
+        const icon = document.createElement('div');
+        icon.className = 'cart-item-icon';
+        icon.textContent = item.icon;
 
-  if (cartModal.classList.contains("active")) {
-    closeCartWindow();
-  }
+        const info = document.createElement('div');
+        info.className = 'cart-item-info';
 
-  if (checkoutModal.classList.contains("active")) {
-    closeCheckoutWindow();
-  }
-});
+        const name = document.createElement('h3');
+        name.textContent = item.name;
 
-/* INITIALIZATION */
+        const price = document.createElement('strong');
+        price.textContent = formatPrice(item.price * item.quantity);
 
-renderCart();
-filterProducts();
-</script>
+        info.append(name, price);
+
+        const controls = document.createElement('div');
+        controls.className = 'cart-item-controls';
+
+        const minus = document.createElement('button');
+        minus.type = 'button';
+        minus.textContent = '−';
+        minus.setAttribute('aria-label', 'Зменшити кількість');
+        minus.addEventListener('click', () => changeQuantity(item.id, -1));
+
+        const quantity = document.createElement('span');
+        quantity.textContent = item.quantity;
+
+        const plus = document.createElement('button');
+        plus.type = 'button';
+        plus.textContent = '+';
+        plus.setAttribute('aria-label', 'Збільшити кількість');
+        plus.addEventListener('click', () => changeQuantity(item.id, 1));
+
+        controls.append(minus, quantity, plus);
+
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'remove-item';
+        remove.textContent = '🗑️';
+        remove.setAttribute('aria-label', 'Видалити товар');
+        remove.addEventListener('click', () => removeFromCart(item.id));
+
+        element.append(icon, info, controls, remove);
+        cartItems.appendChild(element);
+      });
+
+      saveCart();
+    }
+
+    function addToCart(id, name, price, icon) {
+      const existing = cart.find(item => item.id === id);
+
+      if (existing) {
+        existing.quantity++;
+      } else {
+        cart.push({
+          id,
+          name,
+          price,
+          icon,
+          quantity: 1
+        });
+      }
+
+      updateCart();
+    }
+
+    function changeQuantity(id, amount) {
+      const item = cart.find(product => product.id === id);
+
+      if (!item) return;
+
+      item.quantity += amount;
+
+      if (item.quantity <= 0) {
+        cart = cart.filter(product => product.id !== id);
+      }
+
+      updateCart();
+    }
+
+    function removeFromCart(id) {
+      cart = cart.filter(item => item.id !== id);
+      updateCart();
+    }
+
+    function openCart() {
+      cartModal.classList.add('active');
+    }
+
+    function closeCartModal() {
+      cartModal.classList.remove('active');
+    }
+
+    function openCheckout() {
+      if (cart.length === 0) {
+        alert('Спочатку додайте товари до кошика.');
+        return;
+      }
+
+      closeCartModal();
+      checkoutTotal.textContent = formatPrice(getTotal());
+      checkoutModal.classList.add('active');
+    }
+
+    function closeCheckoutModal() {
+      checkoutModal.classList.remove('active');
+    }
+
+    cartButton.addEventListener('click', openCart);
+    closeCart.addEventListener('click', closeCartModal);
+    cartOverlay.addEventListener('click', closeCartModal);
+
+    checkoutButton.addEventListener('click', openCheckout);
+    closeCheckout.addEventListener('click', closeCheckoutModal);
+    checkoutOverlay.addEventListener('click', closeCheckoutModal);
+
+    clearCartButton.addEventListener('click', () => {
+      if (!cart.length) return;
+
+      if (confirm('Очистити весь кошик?')) {
+        cart = [];
+        updateCart();
+      }
+    });
+
+    // SEARCH AND CATEGORY FILTER
+
+    function filterProducts() {
+      const search = productSearch.value.trim().toLowerCase();
+      const category = categoryFilter.value;
+
+      const products = document.querySelectorAll('.product-card');
+
+      let visibleCount = 0;
+
+      products.forEach(product => {
+        const name = product.dataset.name.toLowerCase();
+        const productCategory = product.dataset.category;
+
+        const matchesSearch = name.includes(search);
+        const matchesCategory =
+          category === 'all' || productCategory === category;
+
+        const visible = matchesSearch && matchesCategory;
+
+        product.hidden = !visible;
+
+        if (visible) visibleCount++;
+      });
+
+      document.getElementById('noProducts').hidden = visibleCount > 0;
+    }
+
+    productSearch.addEventListener('input', filterProducts);
+    categoryFilter.addEventListener('change', filterProducts);
+
+    document.querySelectorAll('.category-card').forEach(button => {
+      button.addEventListener('click', () => {
+        categoryFilter.value = button.dataset.category;
+        filterProducts();
+
+        document.getElementById('catalog').scrollIntoView({
+          behavior: 'smooth'
+        });
+      });
+    });
+
+    // CHECKOUT
+
+    checkoutForm.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      if (cart.length === 0) {
+        alert('Ваш кошик порожній.');
+        closeCheckoutModal();
+        return;
+      }
+
+      const submitButton = checkoutForm.querySelector('.checkout-submit');
+
+      const order = {
+        customerName: document.getElementById('customerName').value.trim(),
+        customerPhone: document.getElementById('customerPhone').value.trim(),
+        customerCity: document.getElementById('customerCity').value.trim(),
+        customerAddress: document.getElementById('customerAddress').value.trim(),
+        customerComment: document.getElementById('customerComment').value.trim(),
+        items: cart.map(item => ({
+          id: item.id,
+          quantity: item.quantity
+        }))
+      };
+
+      if (
+        !order.customerName ||
+        !order.customerPhone ||
+        !order.customerCity ||
+        !order.customerAddress
+      ) {
+        alert('Будь ласка, заповніть усі обов’язкові поля.');
+        return;
+      }
+
+      submitButton.disabled = true;
+      submitButton.textContent = '⏳ Надсилаємо замовлення...';
+
+      try {
+        const response = await fetch('/api/orders', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(order)
+        });
+
+        const result = await response.json().catch(() => ({}));
+
+        if (!response.ok || result.ok === false) {
+          throw new Error(result.error || 'Не вдалося оформити замовлення.');
+        }
+
+        cart = [];
+        updateCart();
+
+        checkoutForm.reset();
+        closeCheckoutModal();
+
+        alert('🎉 Дякуємо! Ваше замовлення успішно надіслано.');
+
+      } catch (error) {
+        console.error('Order error:', error);
+
+        alert(
+          error.message ||
+          'Не вдалося надіслати замовлення. Спробуйте ще раз.'
+        );
+
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = '✅ Підтвердити замовлення';
+      }
+    });
+
+    // ESCAPE KEY
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeCartModal();
+        closeCheckoutModal();
+      }
+    });
+
+    // INITIALIZATION
+
+    updateCart();
+    filterProducts();
+
+    // Make addToCart available to product buttons.
+    window.addToCart = addToCart;
+  </script>
 
 </body>
 </html>
