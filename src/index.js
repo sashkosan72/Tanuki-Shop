@@ -189,8 +189,7 @@ async function ensureSupportTables(env) {
     `)
   ]);
 
-  // Міграція для вже створеної таблиці.
-  // Якщо поле існує, повторне додавання не заважає роботі.
+  // Безпечна міграція для вже створеної таблиці.
   try {
     await env.DB.prepare(`
       ALTER TABLE support_chats
@@ -388,11 +387,8 @@ async function notifyTelegram(env, order) {
     return;
   }
 
-  try {
-    await configureTelegramWebhook(env);
-  } catch (error) {
-    console.error("Telegram webhook error:", error.message);
-  }
+  // Webhook налаштовується окремим захищеним endpoint,
+  // а не повторно під час кожного замовлення.
 
   const itemsText = order.items.map(item =>
     `• ${escapeHtml(item.name)} × ${item.quantity} — ${item.price * item.quantity} ₴`
@@ -771,10 +767,14 @@ async function handleAdminSupportReply(env, message) {
     message.reply_to_message.caption ||
     "";
 
-  const match = originalText.match(/Telegram ID:\s*(\d+)/);
-  if (!match) return false;
+  // Знаходимо і Telegram ID покупця, і номер конкретного звернення.
+  const telegramMatch = originalText.match(/Telegram ID:\s*(\d+)/);
+  const ticketMatch = originalText.match(/Звернення №\s*(\d+)/i);
 
-  const buyerTelegramId = match[1];
+  if (!telegramMatch || !ticketMatch) return false;
+
+  const buyerTelegramId = telegramMatch[1];
+  const supportChatId = Number(ticketMatch[1]);
   const answer = cleanText(message.text || "", 1500);
 
   if (!answer || answer.startsWith("/")) {
@@ -789,16 +789,31 @@ async function handleAdminSupportReply(env, message) {
   try {
     await ensureSupportTables(env);
 
+    // Важливо: шукаємо саме те звернення, на повідомлення якого відповіли.
     const chat = await env.DB.prepare(`
-      SELECT id
+      SELECT id, telegram_id, status
       FROM support_chats
-      WHERE telegram_id = ?
-      ORDER BY id DESC
+      WHERE id = ?
+        AND telegram_id = ?
       LIMIT 1
-    `).bind(buyerTelegramId).first();
+    `).bind(supportChatId, buyerTelegramId).first();
 
-    if (chat) {
-      await saveSupportMessage(env, chat.id, "admin", answer);
+    if (!chat) {
+      await sendBuyerMessage(
+        env,
+        expectedAdmin,
+        "❌ Звернення не знайдено. Перевірте, на яке повідомлення ви відповідаєте."
+      );
+      return true;
+    }
+
+    if (chat.status !== "open") {
+      await sendBuyerMessage(
+        env,
+        expectedAdmin,
+        `⚠️ Звернення №${supportChatId} вже закрите. Відповідь не надіслана.`
+      );
+      return true;
     }
 
     await sendBuyerMessage(
@@ -807,10 +822,12 @@ async function handleAdminSupportReply(env, message) {
       `🦝 Tanuki Shop — відповідь підтримки\n\n${answer}`
     );
 
+    await saveSupportMessage(env, chat.id, "admin", answer);
+
     await sendBuyerMessage(
       env,
       expectedAdmin,
-      "✅ Відповідь успішно надіслана покупцеві."
+      `✅ Відповідь на звернення №${supportChatId} надіслана покупцеві.`
     );
   } catch (error) {
     console.error("Admin support reply error:", error.message);
@@ -1117,14 +1134,16 @@ async function createOrder(request, env) {
   for (const item of body.items) {
     const productId = cleanText(item?.id, 100);
     const quantity = Number(item?.quantity);
-    const product = PRODUCTS[productId];
 
-    if (!product) {
+    // Перевіряємо власні ключі каталогу, а не властивості прототипу.
+    if (!Object.hasOwn(PRODUCTS, productId)) {
       return json({
         ok: false,
         error: "Один із товарів більше недоступний."
       }, 400);
     }
+
+    const product = PRODUCTS[productId];
 
     if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) {
       return json({ ok: false, error: "Некоректна кількість товару." }, 400);
@@ -1476,7 +1495,6 @@ async function adminGetSupportMessages(env, chatId) {
       }, 404);
     }
 
-    // Визначаємо останнє повідомлення від покупця.
     const latestBuyerMessage = await env.DB.prepare(`
       SELECT COALESCE(MAX(id), 0) AS id
       FROM support_messages
@@ -1484,7 +1502,6 @@ async function adminGetSupportMessages(env, chatId) {
         AND sender = 'buyer'
     `).bind(chatId).first();
 
-    // Позначаємо повідомлення покупця прочитаними.
     await env.DB.prepare(`
       UPDATE support_chats
       SET last_admin_read_message_id = MAX(
@@ -1691,6 +1708,28 @@ export default {
             ok: false,
             error: "Потрібно увійти як адміністратор."
           }, 401);
+        }
+
+        // Одноразове налаштування Telegram webhook.
+        if (
+          path === "/api/admin/telegram/webhook/setup" &&
+          method === "POST"
+        ) {
+          try {
+            await configureTelegramWebhook(env);
+
+            return json({
+              ok: true,
+              message: "Telegram webhook успішно налаштовано."
+            });
+          } catch (error) {
+            console.error("Webhook setup error:", error.message);
+
+            return json({
+              ok: false,
+              error: "Не вдалося налаштувати Telegram webhook."
+            }, 500);
+          }
         }
 
         if (path === "/api/admin/orders" && method === "GET") {
