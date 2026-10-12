@@ -443,7 +443,7 @@
     }
 
     function formatPrice(price) {
-      return price.toLocaleString('uk-UA') + ' ₴';
+      return Number(price).toLocaleString('uk-UA') + ' ₴';
     }
 
     function getTotal() {
@@ -471,7 +471,7 @@
 
         const icon = document.createElement('div');
         icon.className = 'cart-item-icon';
-        icon.textContent = item.icon;
+        icon.textContent = item.icon || '🛍️';
 
         const info = document.createElement('div');
         info.className = 'cart-item-info';
@@ -637,6 +637,98 @@
       });
     });
 
+    // SUCCESS WINDOW
+
+    function showOrderSuccess(result) {
+      const orderNumber =
+        result.order_number ||
+        result.orderNumber ||
+        'Замовлення оформлено';
+
+      const total =
+        result.total_amount ??
+        result.total ??
+        0;
+
+      const telegramLink =
+        result.telegram_link ||
+        result.telegramLink ||
+        null;
+
+      const successModal = document.createElement('div');
+      successModal.className = 'checkout-modal active';
+      successModal.style.zIndex = '10000';
+
+      const overlay = document.createElement('div');
+      overlay.className = 'checkout-overlay';
+
+      const windowElement = document.createElement('div');
+      windowElement.className = 'checkout-window';
+
+      const title = document.createElement('h2');
+      title.textContent = '🎉 Замовлення оформлено!';
+
+      const message = document.createElement('p');
+      message.textContent =
+        `Дякуємо за покупку в Tanuki Shop! 🦝 Номер замовлення: ${orderNumber}. Сума: ${formatPrice(total)}.`;
+
+      const telegramInfo = document.createElement('p');
+      telegramInfo.textContent = telegramLink
+        ? '💗 Прив’яжіть Telegram, щоб отримувати повідомлення про зміну статусу замовлення.'
+        : 'Замовлення збережено. Посилання для прив’язки Telegram наразі недоступне.';
+
+      const actions = document.createElement('div');
+      actions.style.display = 'flex';
+      actions.style.flexDirection = 'column';
+      actions.style.gap = '12px';
+      actions.style.marginTop = '20px';
+
+      if (telegramLink) {
+        const telegramButton = document.createElement('a');
+
+        telegramButton.href = telegramLink;
+        telegramButton.target = '_blank';
+        telegramButton.rel = 'noopener noreferrer';
+        telegramButton.textContent = '💬 Прив’язати Telegram';
+        telegramButton.className = 'checkout-submit';
+        telegramButton.style.display = 'block';
+        telegramButton.style.textAlign = 'center';
+        telegramButton.style.textDecoration = 'none';
+
+        actions.appendChild(telegramButton);
+      }
+
+      const closeButton = document.createElement('button');
+
+      closeButton.type = 'button';
+      closeButton.className = 'checkout-submit';
+      closeButton.textContent = '🏠 Продовжити покупки';
+
+      closeButton.addEventListener('click', () => {
+        successModal.remove();
+      });
+
+      actions.appendChild(closeButton);
+
+      windowElement.append(
+        title,
+        message,
+        telegramInfo,
+        actions
+      );
+
+      successModal.append(
+        overlay,
+        windowElement
+      );
+
+      overlay.addEventListener('click', () => {
+        successModal.remove();
+      });
+
+      document.body.appendChild(successModal);
+    }
+
     // CHECKOUT
 
     checkoutForm.addEventListener('submit', async event => {
@@ -687,7 +779,9 @@
         const result = await response.json().catch(() => ({}));
 
         if (!response.ok || result.ok === false) {
-          throw new Error(result.error || 'Не вдалося оформити замовлення.');
+          throw new Error(
+            result.error || 'Не вдалося оформити замовлення.'
+          );
         }
 
         cart = [];
@@ -696,7 +790,7 @@
         checkoutForm.reset();
         closeCheckoutModal();
 
-        alert('🎉 Дякуємо! Ваше замовлення успішно надіслано.');
+        showOrderSuccess(result);
 
       } catch (error) {
         console.error('Order error:', error);
@@ -718,6 +812,14 @@
       if (event.key === 'Escape') {
         closeCartModal();
         closeCheckoutModal();
+
+        const successModal = document.querySelector(
+          '.checkout-modal[style*="10000"]'
+        );
+
+        if (successModal) {
+          successModal.remove();
+        }
       }
     });
 
