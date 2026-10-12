@@ -1,23 +1,17 @@
-
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tanuki-shop",
   "main": "src/index.js",
   "compatibility_date": "2026-10-11",
-
   "observability": {
     "enabled": true
   },
-
   "assets": {
-    "directory": ".",
+    "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": [
-      "/api/*"
-    ]
+    "run_worker_first": ["/api/*"]
   },
-
   "d1_databases": [
     {
       "binding": "DB",
