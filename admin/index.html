@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="uk">
 <head>
@@ -47,6 +46,18 @@ select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
 .chat-preview{font-size:13px;color:#756b74;overflow-wrap:anywhere;margin-top:5px}
 .chat-status{font-size:12px;color:#16834a}
 .chat-status.closed{color:#9b4354}
+.chat-status.waiting{color:#b36a00;font-weight:700}
+.unread-badge{
+  display:inline-block;
+  margin-left:6px;
+  padding:2px 7px;
+  border-radius:20px;
+  background:#ff6f91;
+  color:white;
+  font-size:11px;
+  font-weight:700;
+  vertical-align:middle;
+}
 .chat-window{min-height:450px;display:flex;flex-direction:column}
 .chat-heading{padding-bottom:12px;border-bottom:1px solid #f0dfe5}
 .messages{display:flex;flex-direction:column;gap:10px;padding:16px 0;flex:1;max-height:480px;overflow:auto}
@@ -338,8 +349,6 @@ ordersBox.addEventListener("click", async event => {
 /* -------------------- SUPPORT -------------------- */
 
 async function loadSupportChats() {
-  chatList.innerHTML = '<div class="panel empty">Завантаження…</div>';
-
   try {
     const data = await api("/api/admin/support");
     const chats = data.chats || [];
@@ -351,16 +360,31 @@ async function loadSupportChats() {
 
     chatList.innerHTML = chats.map(chat => {
       const active = Number(chat.id) === Number(selectedChatId);
-      const status = chat.status === "open" ? "Відкрите" : "Закрите";
+      const unread = Number(chat.unread_count || 0);
+      const waiting = chat.status === "open" && chat.last_sender === "buyer";
+
+      const status = chat.status === "closed"
+        ? "Закрите"
+        : (waiting ? "Очікує відповіді" : "Відкрите");
+
+      const statusClass = chat.status === "closed"
+        ? "closed"
+        : (waiting ? "waiting" : "");
 
       return `
         <button type="button"
           class="chat-card ${active ? "active" : ""}"
           data-chat-id="${Number(chat.id)}">
-          <strong>${esc(chat.customer_name || "Покупець")}</strong>
-          <span class="chat-status ${chat.status === "closed" ? "closed" : ""}">
+
+          <strong>
+            ${esc(chat.customer_name || "Покупець")}
+            ${unread ? `<span class="unread-badge">${unread} нов.</span>` : ""}
+          </strong>
+
+          <span class="chat-status ${statusClass}">
             ${status} · №${Number(chat.id)}
           </span>
+
           <div class="chat-preview">${esc(chat.last_message || "Немає повідомлень")}</div>
           <small class="muted">${esc(chat.updated_at || "")}</small>
         </button>
@@ -384,11 +408,26 @@ async function openSupportChat(chatId) {
 
     selectedChatStatus = chat.status;
 
+    const lastMessage = messages.length
+      ? messages[messages.length - 1]
+      : null;
+
+    const waiting = chat.status === "open" &&
+      lastMessage?.sender === "buyer";
+
+    const statusText = chat.status === "closed"
+      ? "Закрите звернення"
+      : (waiting ? "Очікує відповіді" : "Відкрите звернення");
+
+    const statusClass = chat.status === "closed"
+      ? "closed"
+      : (waiting ? "waiting" : "");
+
     chatHeading.innerHTML = `
       <strong>${esc(chat.customer_name || "Покупець")}</strong><br>
       <span class="muted">Telegram ID: ${esc(chat.telegram_id)} · Звернення №${Number(chat.id)}</span><br>
-      <span class="chat-status ${chat.status === "closed" ? "closed" : ""}">
-        ${chat.status === "open" ? "Відкрите звернення" : "Закрите звернення"}
+      <span class="chat-status ${statusClass}">
+        ${statusText}
       </span>
     `;
 
@@ -414,6 +453,7 @@ async function openSupportChat(chatId) {
 
     messagesBox.scrollTop = messagesBox.scrollHeight;
 
+    // Оновлюємо список після того, як сервер позначив повідомлення прочитаними.
     await loadSupportChats();
   } catch (error) {
     messagesBox.innerHTML = '<div class="empty">Не вдалося завантажити листування.</div>';
@@ -513,14 +553,17 @@ loginForm.addEventListener("submit", async event => {
   }
 });
 
-document.getElementById("refreshButton").addEventListener("click", () => {
+document.getElementById("refreshButton").addEventListener("click", async () => {
   const supportVisible = !document.getElementById("supportTab").classList.contains("hidden");
 
   if (supportVisible) {
-    loadSupportChats();
-    if (selectedChatId) openSupportChat(selectedChatId);
+    if (selectedChatId) {
+      await openSupportChat(selectedChatId);
+    } else {
+      await loadSupportChats();
+    }
   } else {
-    loadOrders();
+    await loadOrders();
   }
 });
 
