@@ -9,19 +9,22 @@
 <style>
 *{box-sizing:border-box}
 body{margin:0;background:#fff8f5;color:#29232a;font-family:Arial,sans-serif;line-height:1.5}
-button,input,select{font:inherit}
-.wrap{width:min(1050px,calc(100% - 28px));margin:30px auto}
-.panel,.order{background:white;border:1px solid #f0dfe5;border-radius:18px;padding:20px;box-shadow:0 8px 25px #46233210}
+button,input,select,textarea{font:inherit}
+.wrap{width:min(1100px,calc(100% - 28px));margin:30px auto}
+.panel,.order,.chat-card{background:white;border:1px solid #f0dfe5;border-radius:18px;padding:20px;box-shadow:0 8px 25px #46233210}
 .login{max-width:420px;margin:12vh auto}
 .brand{font-size:24px;font-weight:800}
 .muted{color:#756b74}
 .field{display:grid;gap:7px;margin:18px 0}
-input{width:100%;padding:12px;border:1px solid #e8d7df;border-radius:10px}
+input,textarea{width:100%;padding:12px;border:1px solid #e8d7df;border-radius:10px}
+textarea{resize:vertical;min-height:90px}
 button{border:0;border-radius:10px;padding:11px 16px;background:#ff6f91;color:white;font-weight:bold;cursor:pointer}
-button:disabled{opacity:.6}
+button:disabled{opacity:.6;cursor:wait}
 .secondary{background:#f5e8ed;color:#46343d}
+.danger{background:#a9364d}
 .hidden{display:none!important}
 .error{color:#b42345}
+.success{color:#16834a}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
 .stats{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
 .stat{background:white;border:1px solid #f0dfe5;border-radius:14px;padding:14px 18px;min-width:145px}
@@ -34,7 +37,32 @@ button:disabled{opacity:.6}
 .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
 select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
 .empty{text-align:center;padding:35px;color:#756b74}
-@media(max-width:550px){.top{align-items:flex-start;flex-direction:column}.panel,.order{padding:15px}}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
+.tab.active{background:#46343d;color:white}
+.support-layout{display:grid;grid-template-columns:minmax(230px,330px) 1fr;gap:14px}
+.chat-list{display:grid;gap:10px;align-content:start}
+.chat-card{padding:14px;cursor:pointer;text-align:left;color:#29232a;width:100%;background:white;border:1px solid #f0dfe5}
+.chat-card.active{border:2px solid #ff6f91}
+.chat-card strong{display:block}
+.chat-preview{font-size:13px;color:#756b74;overflow-wrap:anywhere;margin-top:5px}
+.chat-status{font-size:12px;color:#16834a}
+.chat-status.closed{color:#9b4354}
+.chat-window{min-height:450px;display:flex;flex-direction:column}
+.chat-heading{padding-bottom:12px;border-bottom:1px solid #f0dfe5}
+.messages{display:flex;flex-direction:column;gap:10px;padding:16px 0;flex:1;max-height:480px;overflow:auto}
+.message{max-width:85%;padding:11px 14px;border-radius:14px;overflow-wrap:anywhere;white-space:pre-wrap}
+.message.buyer{background:#f5e8ed;align-self:flex-start}
+.message.admin{background:#ffe0e9;align-self:flex-end}
+.message small{display:block;color:#756b74;font-size:11px;margin-top:5px}
+.reply-form{display:grid;gap:9px;border-top:1px solid #f0dfe5;padding-top:14px}
+.reply-actions{display:flex;gap:8px;flex-wrap:wrap}
+@media(max-width:700px){
+ .top{align-items:flex-start;flex-direction:column}
+ .panel,.order{padding:15px}
+ .support-layout{grid-template-columns:1fr}
+ .chat-list{max-height:280px;overflow:auto}
+ .chat-window{min-height:350px}
+}
 </style>
 </head>
 <body>
@@ -43,7 +71,7 @@ select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
 <section id="loginPanel" class="panel login">
   <div class="brand">🦝 Tanuki Shop</div>
   <h1>Вхід адміністратора</h1>
-  <p class="muted">Увійдіть, щоб керувати замовленнями.</p>
+  <p class="muted">Увійдіть, щоб керувати магазином.</p>
   <form id="loginForm">
     <label class="field">
       Пароль адміністратора
@@ -58,23 +86,61 @@ select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
   <header class="top">
     <div>
       <div class="brand">🦝 Tanuki Shop</div>
-      <div class="muted">Панель керування замовленнями</div>
+      <div class="muted">Панель керування магазином</div>
     </div>
-    <div>
+    <div class="actions">
       <button id="refreshButton" class="secondary" type="button">Оновити</button>
       <button id="logoutButton" type="button">Вийти</button>
     </div>
   </header>
 
-  <div class="stats">
-    <div class="stat">Усього замовлень<strong id="orderCount">0</strong></div>
-    <div class="stat">Нові<strong id="newCount">0</strong></div>
-    <div class="stat">Сума<strong id="totalAmount">0 ₴</strong></div>
-  </div>
+  <nav class="tabs">
+    <button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
+    <button class="tab secondary" data-tab="supportTab" type="button">💬 Підтримка</button>
+  </nav>
 
-  <div id="orders" class="orders">
-    <div class="panel empty">Завантаження…</div>
-  </div>
+  <section id="ordersTab">
+    <div class="stats">
+      <div class="stat">Усього замовлень<strong id="orderCount">0</strong></div>
+      <div class="stat">Нові<strong id="newCount">0</strong></div>
+      <div class="stat">Сума<strong id="totalAmount">0 ₴</strong></div>
+    </div>
+
+    <div id="orders" class="orders">
+      <div class="panel empty">Завантаження…</div>
+    </div>
+  </section>
+
+  <section id="supportTab" class="hidden">
+    <h2>💬 Підтримка покупців</h2>
+    <p class="muted">Повідомлення покупців із Telegram та історія листування.</p>
+
+    <div class="support-layout">
+      <div>
+        <div id="chatList" class="chat-list">
+          <div class="panel empty">Завантаження звернень…</div>
+        </div>
+      </div>
+
+      <div class="panel chat-window">
+        <div id="chatHeading" class="chat-heading muted">
+          Оберіть звернення зі списку.
+        </div>
+        <div id="messages" class="messages">
+          <div class="empty">Тут відображатиметься листування.</div>
+        </div>
+        <form id="replyForm" class="reply-form hidden">
+          <textarea id="replyText" maxlength="1500" placeholder="Напишіть відповідь покупцю…" required></textarea>
+          <div class="reply-actions">
+            <button id="replyButton" type="submit">Надіслати відповідь</button>
+            <button id="closeChatButton" class="danger" type="button">Закрити звернення</button>
+          </div>
+          <p id="supportMessage" role="status"></p>
+        </form>
+      </div>
+    </div>
+  </section>
+
   <p id="dashboardError" class="error"></p>
 </section>
 </main>
@@ -82,92 +148,126 @@ select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
 <script>
 "use strict";
 
-const loginPanel=document.getElementById("loginPanel");
-const dashboard=document.getElementById("dashboard");
-const loginForm=document.getElementById("loginForm");
-const loginButton=document.getElementById("loginButton");
-const loginError=document.getElementById("loginError");
-const ordersBox=document.getElementById("orders");
-const dashboardError=document.getElementById("dashboardError");
+const loginPanel = document.getElementById("loginPanel");
+const dashboard = document.getElementById("dashboard");
+const loginForm = document.getElementById("loginForm");
+const loginButton = document.getElementById("loginButton");
+const loginError = document.getElementById("loginError");
+const ordersBox = document.getElementById("orders");
+const dashboardError = document.getElementById("dashboardError");
 
-const labels={
-  new:"Нове",
-  confirmed:"Підтверджено",
-  shipped:"Відправлено",
-  completed:"Завершено",
-  cancelled:"Скасовано"
+const chatList = document.getElementById("chatList");
+const messagesBox = document.getElementById("messages");
+const chatHeading = document.getElementById("chatHeading");
+const replyForm = document.getElementById("replyForm");
+const replyText = document.getElementById("replyText");
+const replyButton = document.getElementById("replyButton");
+const closeChatButton = document.getElementById("closeChatButton");
+const supportMessage = document.getElementById("supportMessage");
+
+let selectedChatId = null;
+let selectedChatStatus = null;
+
+const labels = {
+  new: "Нове",
+  confirmed: "Підтверджено",
+  shipped: "Відправлено",
+  completed: "Завершено",
+  cancelled: "Скасовано"
 };
 
-const money=n=>new Intl.NumberFormat("uk-UA").format(n)+" ₴";
+const money = n => new Intl.NumberFormat("uk-UA").format(n) + " ₴";
 
-const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({
-  "&":"&amp;",
-  "<":"&lt;",
-  ">":"&gt;",
-  '"':"&quot;",
-  "'":"&#39;"
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
+  "&": "&amp;",
+  "<": "&lt;",
+  ">": "&gt;",
+  '"': "&quot;",
+  "'": "&#39;"
 }[c]));
 
-async function api(path,options={}){
-  const response=await fetch(path,{
-    credentials:"same-origin",
+async function api(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "same-origin",
     ...options,
-    headers:{
-      "Content-Type":"application/json",
-      ...(options.headers||{})
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {})
     }
   });
 
-  let data={};
-  try{data=await response.json()}catch{}
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {}
 
-  if(!response.ok||!data.ok){
-    throw new Error(data.error||"Помилка запиту");
+  if (!response.ok || !data.ok) {
+    throw new Error(data.error || "Помилка запиту");
   }
 
   return data;
 }
 
-function showLogin(){
+function showLogin() {
   dashboard.classList.add("hidden");
   loginPanel.classList.remove("hidden");
 }
 
-function showDashboard(){
+function showDashboard() {
   loginPanel.classList.add("hidden");
   dashboard.classList.remove("hidden");
   loadOrders();
 }
 
-async function loadOrders(){
-  dashboardError.textContent="";
-  ordersBox.innerHTML='<div class="panel empty">Завантаження…</div>';
+function showTab(tabId) {
+  document.getElementById("ordersTab").classList.toggle("hidden", tabId !== "ordersTab");
+  document.getElementById("supportTab").classList.toggle("hidden", tabId !== "supportTab");
 
-  try{
-    const data=await api("/api/admin/orders");
-    const orders=data.orders||[];
+  document.querySelectorAll(".tab").forEach(button => {
+    const active = button.dataset.tab === tabId;
+    button.classList.toggle("active", active);
+    button.classList.toggle("secondary", !active);
+  });
 
-    document.getElementById("orderCount").textContent=orders.length;
-    document.getElementById("newCount").textContent=
-      orders.filter(o=>o.status==="new").length;
+  if (tabId === "supportTab") loadSupportChats();
+}
 
-    document.getElementById("totalAmount").textContent=
-      money(orders.reduce((s,o)=>s+Number(o.total_amount||0),0));
+document.querySelectorAll(".tab").forEach(button => {
+  button.addEventListener("click", () => showTab(button.dataset.tab));
+});
 
-    if(!orders.length){
-      ordersBox.innerHTML='<div class="panel empty">Замовлень поки немає 🦝</div>';
+/* -------------------- ORDERS -------------------- */
+
+async function loadOrders() {
+  dashboardError.textContent = "";
+  ordersBox.innerHTML = '<div class="panel empty">Завантаження…</div>';
+
+  try {
+    const data = await api("/api/admin/orders");
+    const orders = data.orders || [];
+
+    document.getElementById("orderCount").textContent = orders.length;
+    document.getElementById("newCount").textContent =
+      orders.filter(o => o.status === "new").length;
+
+    document.getElementById("totalAmount").textContent =
+      money(orders.reduce((s, o) => s + Number(o.total_amount || 0), 0));
+
+    if (!orders.length) {
+      ordersBox.innerHTML = '<div class="panel empty">Замовлень поки немає 🦝</div>';
       return;
     }
 
-    ordersBox.innerHTML=orders.map(o=>{
-      const itemRows=(o.items||[]).map(i=>
-        "<li>"+esc(i.product_name)+" × "+Number(i.quantity)+
-        " — "+money(Number(i.price)*Number(i.quantity))+"</li>"
+    ordersBox.innerHTML = orders.map(o => {
+      const itemRows = (o.items || []).map(i =>
+        "<li>" + esc(i.product_name) + " × " + Number(i.quantity) +
+        " — " + money(Number(i.price) * Number(i.quantity)) + "</li>"
       ).join("");
 
-      const options=Object.entries(labels).map(([value,label])=>
-        '<option value="'+value+'" '+(o.status===value?"selected":"")+
-        '>'+label+'</option>'
+      const options = Object.entries(labels).map(([value, label]) =>
+        '<option value="' + value + '" ' +
+        (o.status === value ? "selected" : "") +
+        '>' + label + '</option>'
       ).join("");
 
       return `
@@ -183,7 +283,7 @@ async function loadOrders(){
           <div class="details">
             👤 ${esc(o.customer_name)} · 📞 ${esc(o.customer_phone)}<br>
             📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}
-            ${o.customer_comment?"<br>💬 "+esc(o.customer_comment):""}
+            ${o.customer_comment ? "<br>💬 " + esc(o.customer_comment) : ""}
           </div>
 
           <strong>Товари:</strong>
@@ -201,86 +301,247 @@ async function loadOrders(){
         </article>
       `;
     }).join("");
-
-  }catch(error){
-    if(error.message.includes("вхід")||
-       error.message.includes("адміністратора")){
+  } catch (error) {
+    if (error.message.includes("вхід") || error.message.includes("адміністратора")) {
       showLogin();
       return;
     }
 
-    dashboardError.textContent=error.message;
-    ordersBox.innerHTML='<div class="panel empty">Не вдалося завантажити замовлення.</div>';
+    dashboardError.textContent = error.message;
+    ordersBox.innerHTML = '<div class="panel empty">Не вдалося завантажити замовлення.</div>';
   }
 }
 
-loginForm.addEventListener("submit",async event=>{
-  event.preventDefault();
-  loginError.textContent="";
-  loginButton.disabled=true;
-  loginButton.textContent="Перевірка…";
+ordersBox.addEventListener("click", async event => {
+  const button = event.target.closest("[data-save-id]");
+  if (!button) return;
 
-  try{
-    await api("/api/admin/login",{
-      method:"POST",
-      body:JSON.stringify({
-        password:document.getElementById("password").value
+  const id = button.dataset.saveId;
+  const select = ordersBox.querySelector('[data-status-id="' + id + '"]');
+
+  button.disabled = true;
+  button.textContent = "Збереження…";
+
+  try {
+    await api("/api/admin/orders/" + id + "/status", {
+      method: "PATCH",
+      body: JSON.stringify({ status: select.value })
+    });
+    await loadOrders();
+  } catch (error) {
+    dashboardError.textContent = error.message;
+    button.disabled = false;
+    button.textContent = "Зберегти статус";
+  }
+});
+
+/* -------------------- SUPPORT -------------------- */
+
+async function loadSupportChats() {
+  chatList.innerHTML = '<div class="panel empty">Завантаження…</div>';
+
+  try {
+    const data = await api("/api/admin/support");
+    const chats = data.chats || [];
+
+    if (!chats.length) {
+      chatList.innerHTML = '<div class="panel empty">Звернень поки немає 🦝</div>';
+      return;
+    }
+
+    chatList.innerHTML = chats.map(chat => {
+      const active = Number(chat.id) === Number(selectedChatId);
+      const status = chat.status === "open" ? "Відкрите" : "Закрите";
+
+      return `
+        <button type="button"
+          class="chat-card ${active ? "active" : ""}"
+          data-chat-id="${Number(chat.id)}">
+          <strong>${esc(chat.customer_name || "Покупець")}</strong>
+          <span class="chat-status ${chat.status === "closed" ? "closed" : ""}">
+            ${status} · №${Number(chat.id)}
+          </span>
+          <div class="chat-preview">${esc(chat.last_message || "Немає повідомлень")}</div>
+          <small class="muted">${esc(chat.updated_at || "")}</small>
+        </button>
+      `;
+    }).join("");
+  } catch (error) {
+    chatList.innerHTML = '<div class="panel empty">Не вдалося завантажити звернення.</div>';
+    dashboardError.textContent = error.message;
+  }
+}
+
+async function openSupportChat(chatId) {
+  selectedChatId = Number(chatId);
+  supportMessage.textContent = "";
+  messagesBox.innerHTML = '<div class="empty">Завантаження листування…</div>';
+
+  try {
+    const data = await api("/api/admin/support/" + selectedChatId);
+    const chat = data.chat;
+    const messages = data.messages || [];
+
+    selectedChatStatus = chat.status;
+
+    chatHeading.innerHTML = `
+      <strong>${esc(chat.customer_name || "Покупець")}</strong><br>
+      <span class="muted">Telegram ID: ${esc(chat.telegram_id)} · Звернення №${Number(chat.id)}</span><br>
+      <span class="chat-status ${chat.status === "closed" ? "closed" : ""}">
+        ${chat.status === "open" ? "Відкрите звернення" : "Закрите звернення"}
+      </span>
+    `;
+
+    if (!messages.length) {
+      messagesBox.innerHTML = '<div class="empty">Повідомлень поки немає.</div>';
+    } else {
+      messagesBox.innerHTML = messages.map(message => {
+        const sender = message.sender === "admin" ? "admin" : "buyer";
+        const senderLabel = sender === "admin" ? "Підтримка" : "Покупець";
+
+        return `
+          <div class="message ${sender}">
+            <strong>${senderLabel}</strong>
+            <div>${esc(message.message_text)}</div>
+            <small>${esc(message.created_at)}</small>
+          </div>
+        `;
+      }).join("");
+    }
+
+    replyForm.classList.toggle("hidden", chat.status !== "open");
+    replyText.value = "";
+
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+
+    await loadSupportChats();
+  } catch (error) {
+    messagesBox.innerHTML = '<div class="empty">Не вдалося завантажити листування.</div>';
+    supportMessage.textContent = error.message;
+  }
+}
+
+chatList.addEventListener("click", event => {
+  const button = event.target.closest("[data-chat-id]");
+  if (!button) return;
+
+  openSupportChat(button.dataset.chatId);
+});
+
+replyForm.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  if (!selectedChatId) return;
+
+  const message = replyText.value.trim();
+  if (!message) return;
+
+  replyButton.disabled = true;
+  replyButton.textContent = "Надсилання…";
+  supportMessage.textContent = "";
+
+  try {
+    await api("/api/admin/support/" + selectedChatId + "/reply", {
+      method: "POST",
+      body: JSON.stringify({ message })
+    });
+
+    replyText.value = "";
+    supportMessage.className = "success";
+    supportMessage.textContent = "Відповідь надіслана покупцеві.";
+
+    await openSupportChat(selectedChatId);
+  } catch (error) {
+    supportMessage.className = "error";
+    supportMessage.textContent = error.message;
+  } finally {
+    replyButton.disabled = false;
+    replyButton.textContent = "Надіслати відповідь";
+  }
+});
+
+closeChatButton.addEventListener("click", async () => {
+  if (!selectedChatId) return;
+
+  if (!confirm("Закрити це звернення?")) return;
+
+  closeChatButton.disabled = true;
+
+  try {
+    await api("/api/admin/support/" + selectedChatId + "/close", {
+      method: "PATCH",
+      body: "{}"
+    });
+
+    await openSupportChat(selectedChatId);
+    await loadSupportChats();
+
+    supportMessage.className = "success";
+    supportMessage.textContent = "Звернення закрито.";
+  } catch (error) {
+    supportMessage.className = "error";
+    supportMessage.textContent = error.message;
+  } finally {
+    closeChatButton.disabled = false;
+  }
+});
+
+/* -------------------- LOGIN / LOGOUT -------------------- */
+
+loginForm.addEventListener("submit", async event => {
+  event.preventDefault();
+
+  loginError.textContent = "";
+  loginButton.disabled = true;
+  loginButton.textContent = "Перевірка…";
+
+  try {
+    await api("/api/admin/login", {
+      method: "POST",
+      body: JSON.stringify({
+        password: document.getElementById("password").value
       })
     });
 
-    document.getElementById("password").value="";
+    document.getElementById("password").value = "";
     showDashboard();
-
-  }catch(error){
-    loginError.textContent=error.message;
-  }finally{
-    loginButton.disabled=false;
-    loginButton.textContent="Увійти";
+  } catch (error) {
+    loginError.textContent = error.message;
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = "Увійти";
   }
 });
 
-ordersBox.addEventListener("click",async event=>{
-  const button=event.target.closest("[data-save-id]");
-  if(!button)return;
+document.getElementById("refreshButton").addEventListener("click", () => {
+  const supportVisible = !document.getElementById("supportTab").classList.contains("hidden");
 
-  const id=button.dataset.saveId;
-  const select=ordersBox.querySelector('[data-status-id="'+id+'"]');
+  if (supportVisible) {
+    loadSupportChats();
+    if (selectedChatId) openSupportChat(selectedChatId);
+  } else {
+    loadOrders();
+  }
+});
 
-  button.disabled=true;
-  button.textContent="Збереження…";
-
-  try{
-    await api("/api/admin/orders/"+id+"/status",{
-      method:"PATCH",
-      body:JSON.stringify({status:select.value})
+document.getElementById("logoutButton").addEventListener("click", async () => {
+  try {
+    await api("/api/admin/logout", {
+      method: "POST",
+      body: "{}"
     });
-    await loadOrders();
-  }catch(error){
-    dashboardError.textContent=error.message;
-    button.disabled=false;
-    button.textContent="Зберегти статус";
-  }
+  } catch {}
+
+  selectedChatId = null;
+  selectedChatStatus = null;
+  showLogin();
 });
 
-document.getElementById("refreshButton")
-  .addEventListener("click",loadOrders);
-
-document.getElementById("logoutButton")
-  .addEventListener("click",async()=>{
-    try{
-      await api("/api/admin/logout",{
-        method:"POST",
-        body:"{}"
-      });
-    }catch{}
-    showLogin();
-  });
-
-(async()=>{
-  try{
+(async () => {
+  try {
     await api("/api/admin/me");
     showDashboard();
-  }catch{
+  } catch {
     showLogin();
   }
 })();
