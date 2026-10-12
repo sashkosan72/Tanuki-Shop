@@ -1,4 +1,3 @@
-
 const PRODUCTS = {
   "tanuki-plush": { name: "Tanuki Plush", price: 499 },
   "kawaii-stickers": { name: "Kawaii Sticker Pack", price: 149 },
@@ -159,7 +158,8 @@ async function ensureSupportTables(env) {
         status TEXT NOT NULL DEFAULT 'open',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        closed_at TEXT
+        closed_at TEXT,
+        last_admin_read_message_id INTEGER NOT NULL DEFAULT 0
       )
     `),
 
@@ -188,6 +188,21 @@ async function ensureSupportTables(env) {
       ON support_messages(chat_id, id)
     `)
   ]);
+
+  // Міграція для вже створеної таблиці.
+  // Якщо поле існує, повторне додавання не заважає роботі.
+  try {
+    await env.DB.prepare(`
+      ALTER TABLE support_chats
+      ADD COLUMN last_admin_read_message_id INTEGER NOT NULL DEFAULT 0
+    `).run();
+  } catch (error) {
+    const message = String(error.message || error).toLowerCase();
+
+    if (!message.includes("duplicate column")) {
+      throw error;
+    }
+  }
 }
 
 async function getOrCreateSupportChat(env, telegramId, customerName) {
@@ -1395,17 +1410,37 @@ async function adminGetSupportChats(env) {
         c.status,
         c.created_at,
         c.updated_at,
+
         (
           SELECT m.message_text
           FROM support_messages m
           WHERE m.chat_id = c.id
           ORDER BY m.id DESC
           LIMIT 1
-        ) AS last_message
+        ) AS last_message,
+
+        (
+          SELECT m.sender
+          FROM support_messages m
+          WHERE m.chat_id = c.id
+          ORDER BY m.id DESC
+          LIMIT 1
+        ) AS last_sender,
+
+        (
+          SELECT COUNT(*)
+          FROM support_messages m
+          WHERE m.chat_id = c.id
+            AND m.sender = 'buyer'
+            AND m.id > c.last_admin_read_message_id
+        ) AS unread_count
+
       FROM support_chats c
+
       ORDER BY
         CASE WHEN c.status = 'open' THEN 0 ELSE 1 END,
         c.updated_at DESC
+
       LIMIT 200
     `).all();
 
@@ -1440,6 +1475,27 @@ async function adminGetSupportMessages(env, chatId) {
         error: "Звернення не знайдено."
       }, 404);
     }
+
+    // Визначаємо останнє повідомлення від покупця.
+    const latestBuyerMessage = await env.DB.prepare(`
+      SELECT COALESCE(MAX(id), 0) AS id
+      FROM support_messages
+      WHERE chat_id = ?
+        AND sender = 'buyer'
+    `).bind(chatId).first();
+
+    // Позначаємо повідомлення покупця прочитаними.
+    await env.DB.prepare(`
+      UPDATE support_chats
+      SET last_admin_read_message_id = MAX(
+        last_admin_read_message_id,
+        ?
+      )
+      WHERE id = ?
+    `).bind(
+      Number(latestBuyerMessage?.id || 0),
+      chatId
+    ).run();
 
     const messages = await env.DB.prepare(`
       SELECT id, sender, message_text, created_at
