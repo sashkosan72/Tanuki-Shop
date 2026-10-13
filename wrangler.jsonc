@@ -1,3 +1,4 @@
+
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "tanuki-shop",
@@ -17,6 +18,12 @@
       "binding": "DB",
       "database_name": "tanuki-shop-db",
       "database_id": "ed78409a-d25e-4c82-841b-f73b78944bc2"
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "PRODUCT_IMAGES",
+      "bucket_name": "tanuki-shop-images"
     }
   ]
 }
