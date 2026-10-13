@@ -37,12 +37,17 @@ const PRODUCT_CATEGORIES = [
   "Інше"
 ];
 
-const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 const MAX_PRODUCT_IMAGES = 8;
+const MAX_IMAGE_SIZE = 8 * 1024 * 1024;
 
-/* =========================================================
-   GENERAL HELPERS
-========================================================= */
+const ALLOWED_IMAGE_TYPES = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "image/gif": "gif"
+};
+
+/* -------------------- GENERAL HELPERS -------------------- */
 
 function json(data, status = 200, headers = {}) {
   return new Response(JSON.stringify(data), {
@@ -159,47 +164,56 @@ function telegramDisplayName(user) {
   ].filter(Boolean).join(" ") || "Покупець";
 }
 
-function toBoolean(value) {
-  return value === true ||
-    value === 1 ||
-    value === "1" ||
-    value === "true" ||
-    value === "on";
-}
-
-function validInteger(value, min = 0, max = Number.MAX_SAFE_INTEGER) {
+function safeInteger(value, min = 0, max = Number.MAX_SAFE_INTEGER) {
   const number = Number(value);
 
-  return Number.isSafeInteger(number) &&
-    number >= min &&
-    number <= max;
+  if (!Number.isSafeInteger(number)) return null;
+  if (number < min || number > max) return null;
+
+  return number;
 }
 
-function productSlug(value) {
-  const slug = cleanText(value, 100)
+function makeProductId(value) {
+  const base = cleanText(value, 100)
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9а-яіїєґ_-]+/gi, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80);
 
-  return slug || crypto.randomUUID();
-}
-
-function effectivePrice(product) {
-  return product.sale_price !== null &&
-    product.sale_price !== undefined
-      ? Number(product.sale_price)
-      : Number(product.price);
+  return base || `product-${crypto.randomUUID().slice(0, 8)}`;
 }
 
 function imageUrl(key) {
   return `/media/${encodeURIComponent(key)}`;
 }
 
-/* =========================================================
-   SUPPORT DATABASE
-========================================================= */
+function getProductImageKeyFromUrl(path) {
+  const prefix = "/media/";
+
+  if (!path.startsWith(prefix)) return null;
+
+  try {
+    const key = decodeURIComponent(path.slice(prefix.length));
+
+    if (
+      !key ||
+      !key.startsWith("products/") ||
+      key.includes("..") ||
+      key.includes("\\") ||
+      key.startsWith("/")
+    ) {
+      return null;
+    }
+
+    return key;
+  } catch {
+    return null;
+  }
+}
+
+/* -------------------- SUPPORT DATABASE -------------------- */
 
 async function ensureSupportTables(env) {
   await env.DB.batch([
@@ -257,7 +271,7 @@ async function ensureSupportTables(env) {
 }
 
 async function getOrCreateSupportChat(env, telegramId, customerName) {
-  const chat = await env.DB.prepare(`
+  let chat = await env.DB.prepare(`
     SELECT id, status
     FROM support_chats
     WHERE telegram_id = ?
@@ -306,9 +320,7 @@ async function saveSupportMessage(env, chatId, sender, messageText) {
   `).bind(chatId).run();
 }
 
-/* =========================================================
-   ADMIN SESSION
-========================================================= */
+/* -------------------- ADMIN SESSION -------------------- */
 
 async function createAdminSignature(timestamp, password) {
   const encoder = new TextEncoder();
@@ -384,9 +396,7 @@ async function requireAdmin(request, env) {
   return verifyAdminSession(request, env);
 }
 
-/* =========================================================
-   TELEGRAM API
-========================================================= */
+/* -------------------- TELEGRAM API -------------------- */
 
 async function telegramCall(env, method, payload) {
   if (!env.TELEGRAM_BOT_TOKEN) {
@@ -441,9 +451,7 @@ async function sendBuyerMessage(env, telegramId, text, extra = {}) {
   });
 }
 
-/* =========================================================
-   TELEGRAM ADMIN NOTIFICATIONS
-========================================================= */
+/* -------------------- ADMIN TELEGRAM NOTIFICATION -------------------- */
 
 async function notifyTelegram(env, order) {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_CHAT_ID) {
@@ -510,6 +518,8 @@ async function notifyTelegram(env, order) {
   }
 }
 
+/* -------------------- BUYER STATUS NOTIFICATION -------------------- */
+
 async function notifyBuyerOrderStatus(env, orderId, status) {
   try {
     const linked = await env.DB.prepare(`
@@ -540,9 +550,7 @@ async function notifyBuyerOrderStatus(env, orderId, status) {
   }
 }
 
-/* =========================================================
-   TELEGRAM BUYER MENU
-========================================================= */
+/* -------------------- BUYER MENU -------------------- */
 
 async function sendBuyerMenu(
   env,
@@ -554,9 +562,7 @@ async function sendBuyerMenu(
   });
 }
 
-/* =========================================================
-   TELEGRAM ORDER LINK
-========================================================= */
+/* -------------------- TELEGRAM ORDER LINK -------------------- */
 
 async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
   if (!/^[A-Za-z0-9_-]{20,64}$/.test(rawToken)) {
@@ -702,9 +708,7 @@ async function linkTelegramOrder(env, chatId, telegramUser, rawToken) {
   }
 }
 
-/* =========================================================
-   TELEGRAM BUYER ORDERS
-========================================================= */
+/* -------------------- BUYER ORDERS -------------------- */
 
 async function showBuyerOrders(env, chatId, telegramId) {
   const result = await env.DB.prepare(`
@@ -752,9 +756,7 @@ async function showBuyerStatuses(env, chatId, telegramId) {
   return showBuyerOrders(env, chatId, telegramId);
 }
 
-/* =========================================================
-   TELEGRAM BUYER SUPPORT
-========================================================= */
+/* -------------------- BUYER SUPPORT -------------------- */
 
 async function handleBuyerSupport(
   env,
@@ -855,9 +857,7 @@ async function handleBuyerSupport(
   }
 }
 
-/* =========================================================
-   TELEGRAM ADMIN SUPPORT REPLY
-========================================================= */
+/* -------------------- ADMIN TELEGRAM REPLY -------------------- */
 
 async function handleAdminSupportReply(env, message) {
   const expectedAdmin = String(env.TELEGRAM_CHAT_ID || "");
@@ -963,9 +963,7 @@ async function handleAdminSupportReply(env, message) {
   return true;
 }
 
-/* =========================================================
-   TELEGRAM BUYER MESSAGES
-========================================================= */
+/* -------------------- BUYER TELEGRAM MESSAGES -------------------- */
 
 async function handleBuyerMessage(env, message) {
   const chatId = message.chat?.id;
@@ -979,7 +977,12 @@ async function handleBuyerMessage(env, message) {
     const payload = text.split(/\s+/, 2)[1] || "";
 
     if (payload) {
-      await linkTelegramOrder(env, chatId, telegramUser, payload);
+      await linkTelegramOrder(
+        env,
+        chatId,
+        telegramUser,
+        payload
+      );
     } else {
       await sendBuyerMenu(
         env,
@@ -1064,9 +1067,7 @@ async function handleBuyerMessage(env, message) {
   }
 }
 
-/* =========================================================
-   TELEGRAM WEBHOOK
-========================================================= */
+/* -------------------- TELEGRAM WEBHOOK -------------------- */
 
 async function handleTelegramWebhook(request, env) {
   if (!env.TELEGRAM_WEBHOOK_SECRET) {
@@ -1172,7 +1173,11 @@ async function handleTelegramWebhook(request, env) {
         WHERE id = ?
       `).bind(newStatus, orderId).run();
 
-      await notifyBuyerOrderStatus(env, orderId, newStatus);
+      await notifyBuyerOrderStatus(
+        env,
+        orderId,
+        newStatus
+      );
     }
 
     await telegramCall(env, "answerCallbackQuery", {
@@ -1216,9 +1221,7 @@ async function handleTelegramWebhook(request, env) {
   }
 }
 
-/* =========================================================
-   HEALTH CHECK
-========================================================= */
+/* -------------------- HEALTH CHECK -------------------- */
 
 async function healthCheck(env) {
   try {
@@ -1227,8 +1230,7 @@ async function healthCheck(env) {
     return json({
       ok: true,
       service: "Tanuki Shop",
-      database: "connected",
-      product_storage: env.PRODUCT_IMAGES ? "connected" : "not configured"
+      database: "connected"
     });
   } catch (error) {
     console.error("Health check error:", error.message);
@@ -1241,9 +1243,7 @@ async function healthCheck(env) {
   }
 }
 
-/* =========================================================
-   PRODUCT DATABASE HELPERS
-========================================================= */
+/* -------------------- PRODUCT DATABASE -------------------- */
 
 async function getProductImages(env, productId) {
   const result = await env.DB.prepare(`
@@ -1260,8 +1260,34 @@ async function getProductImages(env, productId) {
   }));
 }
 
-async function getProductById(env, productId) {
-  return env.DB.prepare(`
+function formatProduct(product, images = []) {
+  const price = Number(product.price);
+  const salePrice = product.sale_price === null
+    ? null
+    : Number(product.sale_price);
+
+  return {
+    id: product.id,
+    name: product.name,
+    description: product.description || "",
+    category: product.category,
+    price,
+    sale_price: salePrice,
+    current_price: salePrice !== null ? salePrice : price,
+    discount: salePrice !== null
+      ? Math.round((1 - salePrice / price) * 100)
+      : 0,
+    stock: Number(product.stock || 0),
+    track_stock: Boolean(product.track_stock),
+    available: Boolean(product.active) &&
+      (!product.track_stock || Number(product.stock) > 0),
+    active: Boolean(product.active),
+    images
+  };
+}
+
+async function getProducts(env, includeInactive = false) {
+  const result = await env.DB.prepare(`
     SELECT
       id,
       name,
@@ -1275,93 +1301,46 @@ async function getProductById(env, productId) {
       created_at,
       updated_at
     FROM products
-    WHERE id = ?
-    LIMIT 1
-  `).bind(productId).first();
+    ${includeInactive ? "" : "WHERE active = 1"}
+    ORDER BY created_at DESC, name ASC
+  `).all();
+
+  const products = [];
+
+  for (const product of result.results || []) {
+    const images = await getProductImages(env, product.id);
+
+    products.push({
+      ...formatProduct(product, images),
+      created_at: product.created_at,
+      updated_at: product.updated_at
+    });
+  }
+
+  return products;
 }
-
-function formatProduct(product, images = []) {
-  const price = Number(product.price);
-  const salePrice = product.sale_price === null
-    ? null
-    : Number(product.sale_price);
-
-  const currentPrice = salePrice !== null ? salePrice : price;
-
-  return {
-    id: product.id,
-    name: product.name,
-    description: product.description,
-    category: product.category,
-    price,
-    sale_price: salePrice,
-    current_price: currentPrice,
-    discount_percent: salePrice !== null && price > 0
-      ? Math.round((1 - salePrice / price) * 100)
-      : 0,
-    stock: Number(product.stock),
-    track_stock: Boolean(product.track_stock),
-    active: Boolean(product.active),
-    available: Boolean(product.active) &&
-      (!product.track_stock || Number(product.stock) > 0),
-    images,
-    created_at: product.created_at,
-    updated_at: product.updated_at
-  };
-}
-
-/* =========================================================
-   PUBLIC PRODUCT API
-========================================================= */
 
 async function publicGetProducts(request, env) {
   try {
+    let products = await getProducts(env, false);
+
     const url = new URL(request.url);
     const category = cleanText(url.searchParams.get("category") || "", 100);
-    const search = cleanText(url.searchParams.get("q") || "", 100);
-
-    let sql = `
-      SELECT
-        id,
-        name,
-        description,
-        category,
-        price,
-        sale_price,
-        stock,
-        track_stock,
-        active,
-        created_at,
-        updated_at
-      FROM products
-      WHERE active = 1
-    `;
-
-    const values = [];
+    const query = cleanText(url.searchParams.get("q") || "", 100)
+      .toLowerCase();
 
     if (category) {
-      sql += " AND category = ?";
-      values.push(category);
+      products = products.filter(product =>
+        product.category.toLowerCase() === category.toLowerCase()
+      );
     }
 
-    if (search) {
-      sql += " AND (name LIKE ? OR description LIKE ?)";
-      values.push(`%${search}%`, `%${search}%`);
-    }
-
-    sql += " ORDER BY created_at DESC";
-
-    const statement = env.DB.prepare(sql);
-    const result = await (
-      values.length ? statement.bind(...values) : statement
-    ).all();
-
-    const products = [];
-
-    for (const product of result.results || []) {
-      const images = await getProductImages(env, product.id);
-
-      products.push(formatProduct(product, images));
+    if (query) {
+      products = products.filter(product =>
+        `${product.name} ${product.description} ${product.category}`
+          .toLowerCase()
+          .includes(query)
+      );
     }
 
     return json({
@@ -1379,36 +1358,9 @@ async function publicGetProducts(request, env) {
   }
 }
 
-/* =========================================================
-   ADMIN PRODUCT API
-========================================================= */
-
 async function adminGetProducts(env) {
   try {
-    const result = await env.DB.prepare(`
-      SELECT
-        id,
-        name,
-        description,
-        category,
-        price,
-        sale_price,
-        stock,
-        track_stock,
-        active,
-        created_at,
-        updated_at
-      FROM products
-      ORDER BY created_at DESC
-    `).all();
-
-    const products = [];
-
-    for (const product of result.results || []) {
-      const images = await getProductImages(env, product.id);
-
-      products.push(formatProduct(product, images));
-    }
+    const products = await getProducts(env, true);
 
     return json({
       ok: true,
@@ -1425,107 +1377,57 @@ async function adminGetProducts(env) {
   }
 }
 
-function validateProductInput(body, partial = false) {
-  const data = {};
-
-  if (!partial || Object.hasOwn(body, "name")) {
-    data.name = cleanText(body.name, 180);
-
-    if (!data.name) {
-      return { error: "Вкажіть назву товару." };
-    }
-  }
-
-  if (!partial || Object.hasOwn(body, "description")) {
-    data.description = cleanText(body.description || "", 5000);
-  }
-
-  if (!partial || Object.hasOwn(body, "category")) {
-    data.category = cleanText(body.category, 100);
-
-    if (!data.category) {
-      return { error: "Вкажіть категорію товару." };
-    }
-  }
-
-  if (!partial || Object.hasOwn(body, "price")) {
-    if (!validInteger(body.price, 1, 100000000)) {
-      return { error: "Ціна повинна бути цілим числом більше нуля." };
-    }
-
-    data.price = Number(body.price);
-  }
-
-  if (!partial || Object.hasOwn(body, "sale_price")) {
-    const value = body.sale_price;
-
-    if (value === null || value === "" || value === undefined) {
-      data.sale_price = null;
-    } else {
-      if (!validInteger(value, 1, 100000000)) {
-        return { error: "Некоректна ціна зі знижкою." };
-      }
-
-      data.sale_price = Number(value);
-    }
-  }
-
-  if (!partial || Object.hasOwn(body, "stock")) {
-    if (!validInteger(body.stock, 0, 100000000)) {
-      return { error: "Залишок повинен бути цілим числом від нуля." };
-    }
-
-    data.stock = Number(body.stock);
-  }
-
-  if (!partial || Object.hasOwn(body, "track_stock")) {
-    data.track_stock = toBoolean(body.track_stock) ? 1 : 0;
-  }
-
-  if (!partial || Object.hasOwn(body, "active")) {
-    data.active = toBoolean(body.active) ? 1 : 0;
-  }
-
-  const finalPrice = data.price;
-  const finalSalePrice = data.sale_price;
-
-  if (
-    finalPrice !== undefined &&
-    finalSalePrice !== undefined &&
-    finalSalePrice !== null &&
-    finalSalePrice >= finalPrice
-  ) {
-    return {
-      error: "Ціна зі знижкою повинна бути меншою за звичайну ціну."
-    };
-  }
-
-  return { data };
-}
+/* -------------------- CREATE PRODUCT -------------------- */
 
 async function adminCreateProduct(request, env) {
   const body = await readJson(request);
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  if (!body || typeof body !== "object") {
     return json({
       ok: false,
       error: "Некоректні дані товару."
     }, 400);
   }
 
-  const validation = validateProductInput(body);
+  const name = cleanText(body.name, 160);
+  const description = cleanText(body.description, 3000);
+  const category = cleanText(body.category, 100);
+  const price = safeInteger(body.price, 1, 100000000);
+  const salePrice = body.sale_price === null ||
+    body.sale_price === "" ||
+    body.sale_price === undefined
+      ? null
+      : safeInteger(body.sale_price, 1, 100000000);
 
-  if (validation.error) {
+  const stock = safeInteger(body.stock ?? 0, 0, 1000000);
+  const trackStock = body.track_stock ? 1 : 0;
+  const active = body.active === false ? 0 : 1;
+
+  if (!name || !category || price === null || stock === null) {
     return json({
       ok: false,
-      error: validation.error
+      error: "Перевірте назву, категорію, ціну та залишок."
     }, 400);
   }
 
-  const data = validation.data;
-  const id = productSlug(body.id || body.name);
+  if (salePrice !== null && salePrice >= price) {
+    return json({
+      ok: false,
+      error: "Акційна ціна повинна бути меншою за звичайну."
+    }, 400);
+  }
+
+  let id = makeProductId(body.id || name);
 
   try {
+    const existing = await env.DB.prepare(`
+      SELECT id FROM products WHERE id = ? LIMIT 1
+    `).bind(id).first();
+
+    if (existing) {
+      id = `${id}-${crypto.randomUUID().slice(0, 6)}`;
+    }
+
     await env.DB.prepare(`
       INSERT INTO products (
         id,
@@ -1541,17 +1443,19 @@ async function adminCreateProduct(request, env) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       id,
-      data.name,
-      data.description,
-      data.category,
-      data.price,
-      data.sale_price,
-      data.stock,
-      data.track_stock,
-      data.active
+      name,
+      description,
+      category,
+      price,
+      salePrice,
+      stock,
+      trackStock,
+      active
     ).run();
 
-    const product = await getProductById(env, id);
+    const product = await env.DB.prepare(`
+      SELECT * FROM products WHERE id = ? LIMIT 1
+    `).bind(id).first();
 
     return json({
       ok: true,
@@ -1561,13 +1465,6 @@ async function adminCreateProduct(request, env) {
   } catch (error) {
     console.error("Create product error:", error.message);
 
-    if (String(error.message).toLowerCase().includes("unique")) {
-      return json({
-        ok: false,
-        error: "Товар із таким ID вже існує. Спробуйте інший ID."
-      }, 409);
-    }
-
     return json({
       ok: false,
       error: "Не вдалося створити товар."
@@ -1575,58 +1472,89 @@ async function adminCreateProduct(request, env) {
   }
 }
 
+/* -------------------- UPDATE PRODUCT -------------------- */
+
 async function adminUpdateProduct(request, env, productId) {
   const body = await readJson(request);
 
-  if (!body || typeof body !== "object" || Array.isArray(body)) {
+  if (!body || typeof body !== "object") {
     return json({
       ok: false,
       error: "Некоректні дані товару."
     }, 400);
   }
 
-  const existing = await getProductById(env, productId);
-
-  if (!existing) {
-    return json({
-      ok: false,
-      error: "Товар не знайдено."
-    }, 404);
-  }
-
-  const merged = {
-    name: Object.hasOwn(body, "name") ? body.name : existing.name,
-    description: Object.hasOwn(body, "description")
-      ? body.description
-      : existing.description,
-    category: Object.hasOwn(body, "category")
-      ? body.category
-      : existing.category,
-    price: Object.hasOwn(body, "price") ? body.price : existing.price,
-    sale_price: Object.hasOwn(body, "sale_price")
-      ? body.sale_price
-      : existing.sale_price,
-    stock: Object.hasOwn(body, "stock") ? body.stock : existing.stock,
-    track_stock: Object.hasOwn(body, "track_stock")
-      ? body.track_stock
-      : existing.track_stock,
-    active: Object.hasOwn(body, "active")
-      ? body.active
-      : existing.active
-  };
-
-  const validation = validateProductInput(merged);
-
-  if (validation.error) {
-    return json({
-      ok: false,
-      error: validation.error
-    }, 400);
-  }
-
-  const data = validation.data;
-
   try {
+    const current = await env.DB.prepare(`
+      SELECT * FROM products WHERE id = ? LIMIT 1
+    `).bind(productId).first();
+
+    if (!current) {
+      return json({
+        ok: false,
+        error: "Товар не знайдено."
+      }, 404);
+    }
+
+    const name = body.name === undefined
+      ? current.name
+      : cleanText(body.name, 160);
+
+    const description = body.description === undefined
+      ? current.description
+      : cleanText(body.description, 3000);
+
+    const category = body.category === undefined
+      ? current.category
+      : cleanText(body.category, 100);
+
+    const price = body.price === undefined
+      ? Number(current.price)
+      : safeInteger(body.price, 1, 100000000);
+
+    const salePrice = body.sale_price === undefined
+      ? current.sale_price
+      : (
+          body.sale_price === null || body.sale_price === ""
+            ? null
+            : safeInteger(body.sale_price, 1, 100000000)
+        );
+
+    const stock = body.stock === undefined
+      ? Number(current.stock)
+      : safeInteger(body.stock, 0, 1000000);
+
+    const trackStock = body.track_stock === undefined
+      ? Number(current.track_stock)
+      : (body.track_stock ? 1 : 0);
+
+    const active = body.active === undefined
+      ? Number(current.active)
+      : (body.active ? 1 : 0);
+
+    if (
+      !name ||
+      !category ||
+      price === null ||
+      stock === null ||
+      (body.sale_price !== undefined &&
+        body.sale_price !== null &&
+        body.sale_price !== "" &&
+        salePrice === null)
+    ) {
+      return json({
+        ok: false,
+        error: "Перевірте назву, категорію, ціну та залишок."
+      }, 400);
+    }
+
+    if (salePrice !== null && Number(salePrice) >= price) {
+      return json({
+        ok: false,
+        error: "Акційна ціна повинна бути меншою за звичайну."
+      }, 400);
+    }
+
     await env.DB.prepare(`
       UPDATE products
       SET name = ?,
@@ -1640,18 +1568,21 @@ async function adminUpdateProduct(request, env, productId) {
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(
-      data.name,
-      data.description,
-      data.category,
-      data.price,
-      data.sale_price,
-      data.stock,
-      data.track_stock,
-      data.active,
+      name,
+      description,
+      category,
+      price,
+      salePrice,
+      stock,
+      trackStock,
+      active,
       productId
     ).run();
 
-    const updated = await getProductById(env, productId);
+    const updated = await env.DB.prepare(`
+      SELECT * FROM products WHERE id = ? LIMIT 1
+    `).bind(productId).first();
+
     const images = await getProductImages(env, productId);
 
     return json({
@@ -1669,52 +1600,39 @@ async function adminUpdateProduct(request, env, productId) {
   }
 }
 
-async function adminDeactivateProduct(env, productId) {
+/* -------------------- DEACTIVATE PRODUCT -------------------- */
+
+async function adminDeleteProduct(env, productId) {
   try {
-    const product = await getProductById(env, productId);
-
-    if (!product) {
-      return json({
-        ok: false,
-        error: "Товар не знайдено."
-      }, 404);
-    }
-
-    await env.DB.prepare(`
+    const result = await env.DB.prepare(`
       UPDATE products
       SET active = 0,
           updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `).bind(productId).run();
 
+    if (!(result.meta?.changes || 0)) {
+      return json({
+        ok: false,
+        error: "Товар не знайдено."
+      }, 404);
+    }
+
     return json({
       ok: true,
-      message: "Товар приховано з каталогу."
+      message: "Товар приховано з каталогу. Історію замовлень збережено."
     });
   } catch (error) {
     console.error("Deactivate product error:", error.message);
 
     return json({
       ok: false,
-      error: "Не вдалося приховати товар."
+      error: "Не вдалося вимкнути товар."
     }, 500);
   }
 }
 
-/* =========================================================
-   PRODUCT IMAGE UPLOAD
-========================================================= */
-
-function extensionForImage(type) {
-  const extensions = {
-    "image/jpeg": "jpg",
-    "image/png": "png",
-    "image/webp": "webp",
-    "image/gif": "gif"
-  };
-
-  return extensions[type] || null;
-}
+/* -------------------- PRODUCT IMAGE UPLOAD -------------------- */
 
 async function adminUploadProductImages(request, env, productId) {
   if (!env.PRODUCT_IMAGES) {
@@ -1724,77 +1642,61 @@ async function adminUploadProductImages(request, env, productId) {
     }, 500);
   }
 
-  const product = await getProductById(env, productId);
-
-  if (!product) {
-    return json({
-      ok: false,
-      error: "Товар не знайдено."
-    }, 404);
-  }
-
-  const contentLength = Number(request.headers.get("Content-Length") || 0);
-
-  if (contentLength > MAX_IMAGE_SIZE * MAX_PRODUCT_IMAGES + 1024 * 1024) {
-    return json({
-      ok: false,
-      error: "Загальний розмір завантаження завеликий."
-    }, 413);
-  }
-
-  let form;
-
   try {
-    form = await request.formData();
-  } catch {
-    return json({
-      ok: false,
-      error: "Не вдалося прочитати завантажені файли."
-    }, 400);
-  }
+    const product = await env.DB.prepare(`
+      SELECT id FROM products WHERE id = ? LIMIT 1
+    `).bind(productId).first();
 
-  const files = [
-    ...form.getAll("images"),
-    ...form.getAll("files")
-  ].filter(value => value && typeof value !== "string");
+    if (!product) {
+      return json({
+        ok: false,
+        error: "Товар не знайдено."
+      }, 404);
+    }
 
-  if (!files.length) {
-    return json({
-      ok: false,
-      error: "Виберіть хоча б одне зображення."
-    }, 400);
-  }
+    const existing = await env.DB.prepare(`
+      SELECT COUNT(*) AS count
+      FROM product_images
+      WHERE product_id = ?
+    `).bind(productId).first();
 
-  const current = await env.DB.prepare(`
-    SELECT COUNT(*) AS count
-    FROM product_images
-    WHERE product_id = ?
-  `).bind(productId).first();
+    const currentCount = Number(existing?.count || 0);
 
-  const currentCount = Number(current?.count || 0);
+    const form = await request.formData();
+    const files = [
+      ...form.getAll("images"),
+      ...form.getAll("files")
+    ].filter(value => value && typeof value !== "string");
 
-  if (currentCount + files.length > MAX_PRODUCT_IMAGES) {
-    return json({
-      ok: false,
-      error: `Для одного товару дозволено максимум ${MAX_PRODUCT_IMAGES} фотографій.`
-    }, 400);
-  }
+    if (!files.length) {
+      return json({
+        ok: false,
+        error: "Виберіть фотографії для завантаження."
+      }, 400);
+    }
 
-  const uploaded = [];
-  const insertedIds = [];
+    if (currentCount + files.length > MAX_PRODUCT_IMAGES) {
+      return json({
+        ok: false,
+        error: `Для одного товару можна додати не більше ${MAX_PRODUCT_IMAGES} фотографій. Зараз: ${currentCount}.`
+      }, 400);
+    }
 
-  try {
+    const uploaded = [];
+
     for (const file of files) {
-      const extension = extensionForImage(file.type);
+      const extension = ALLOWED_IMAGE_TYPES[file.type];
 
       if (!extension) {
         throw new Error(
-          "Дозволені формати фотографій: JPG, PNG, WEBP та GIF."
+          "Дозволені лише JPG, PNG, WEBP та GIF."
         );
       }
 
       if (!file.size || file.size > MAX_IMAGE_SIZE) {
-        throw new Error("Кожна фотографія повинна бути не більшою за 8 МБ.");
+        throw new Error(
+          "Розмір кожної фотографії не повинен перевищувати 8 МБ."
+        );
       }
 
       const key =
@@ -1807,9 +1709,13 @@ async function adminUploadProductImages(request, env, productId) {
         }
       });
 
-      uploaded.push(key);
+      const maxPosition = await env.DB.prepare(`
+        SELECT COALESCE(MAX(position), -1) AS position
+        FROM product_images
+        WHERE product_id = ?
+      `).bind(productId).first();
 
-      const position = currentCount + uploaded.length - 1;
+      const position = Number(maxPosition?.position ?? -1) + 1;
 
       const result = await env.DB.prepare(`
         INSERT INTO product_images (
@@ -1820,30 +1726,20 @@ async function adminUploadProductImages(request, env, productId) {
         VALUES (?, ?, ?)
       `).bind(productId, key, position).run();
 
-      insertedIds.push(result.meta.last_row_id);
+      uploaded.push({
+        id: result.meta.last_row_id,
+        url: imageUrl(key),
+        position
+      });
     }
-
-    const images = await getProductImages(env, productId);
 
     return json({
       ok: true,
-      images,
+      images: uploaded,
       message: "Фотографії завантажено."
     }, 201);
   } catch (error) {
-    console.error("Image upload error:", error.message);
-
-    // При помилці прибираємо вже завантажені об'єкти та записи.
-    for (const id of insertedIds) {
-      await env.DB.prepare(`
-        DELETE FROM product_images
-        WHERE id = ?
-      `).bind(id).run().catch(() => {});
-    }
-
-    for (const key of uploaded) {
-      await env.PRODUCT_IMAGES.delete(key).catch(() => {});
-    }
+    console.error("Upload product images error:", error.message);
 
     return json({
       ok: false,
@@ -1852,9 +1748,7 @@ async function adminUploadProductImages(request, env, productId) {
   }
 }
 
-/* =========================================================
-   PRODUCT IMAGE DELETE
-========================================================= */
+/* -------------------- DELETE PRODUCT IMAGE -------------------- */
 
 async function adminDeleteProductImage(env, productId, imageId) {
   if (!env.PRODUCT_IMAGES) {
@@ -1864,22 +1758,22 @@ async function adminDeleteProductImage(env, productId, imageId) {
     }, 500);
   }
 
-  const image = await env.DB.prepare(`
-    SELECT id, image_key
-    FROM product_images
-    WHERE id = ?
-      AND product_id = ?
-    LIMIT 1
-  `).bind(imageId, productId).first();
-
-  if (!image) {
-    return json({
-      ok: false,
-      error: "Фотографію не знайдено."
-    }, 404);
-  }
-
   try {
+    const image = await env.DB.prepare(`
+      SELECT id, image_key
+      FROM product_images
+      WHERE id = ?
+        AND product_id = ?
+      LIMIT 1
+    `).bind(imageId, productId).first();
+
+    if (!image) {
+      return json({
+        ok: false,
+        error: "Фотографію не знайдено."
+      }, 404);
+    }
+
     await env.PRODUCT_IMAGES.delete(image.image_key);
 
     await env.DB.prepare(`
@@ -1893,7 +1787,7 @@ async function adminDeleteProductImage(env, productId, imageId) {
       message: "Фотографію видалено."
     });
   } catch (error) {
-    console.error("Delete image error:", error.message);
+    console.error("Delete product image error:", error.message);
 
     return json({
       ok: false,
@@ -1902,32 +1796,16 @@ async function adminDeleteProductImage(env, productId, imageId) {
   }
 }
 
-/* =========================================================
-   PRODUCT IMAGE ORDER
-========================================================= */
+/* -------------------- REORDER PRODUCT IMAGES -------------------- */
 
 async function adminReorderProductImages(request, env, productId) {
   const body = await readJson(request);
-
-  if (!Array.isArray(body?.ids)) {
-    return json({
-      ok: false,
-      error: "Передайте масив ID фотографій у полі ids."
-    }, 400);
-  }
-
-  if (body.ids.length > MAX_PRODUCT_IMAGES) {
-    return json({
-      ok: false,
-      error: "Забагато фотографій."
-    }, 400);
-  }
-
-  const ids = body.ids.map(Number);
+  const ids = body?.ids;
 
   if (
-    ids.some(id => !Number.isSafeInteger(id) || id < 1) ||
-    new Set(ids).size !== ids.length
+    !Array.isArray(ids) ||
+    ids.length > MAX_PRODUCT_IMAGES ||
+    ids.some(id => !Number.isSafeInteger(Number(id)) || Number(id) <= 0)
   ) {
     return json({
       ok: false,
@@ -1936,42 +1814,43 @@ async function adminReorderProductImages(request, env, productId) {
   }
 
   try {
-    const existing = await env.DB.prepare(`
+    const current = await env.DB.prepare(`
       SELECT id
       FROM product_images
       WHERE product_id = ?
       ORDER BY position ASC, id ASC
     `).bind(productId).all();
 
-    const existingIds = (existing.results || []).map(row => Number(row.id));
+    const currentIds = (current.results || []).map(row => Number(row.id));
+    const requestedIds = ids.map(Number);
 
     if (
-      existingIds.length !== ids.length ||
-      existingIds.some(id => !ids.includes(id))
+      currentIds.length !== requestedIds.length ||
+      new Set(requestedIds).size !== requestedIds.length ||
+      requestedIds.some(id => !currentIds.includes(id))
     ) {
       return json({
         ok: false,
-        error: "Список фотографій змінився. Оновіть сторінку."
-      }, 409);
+        error: "Список фотографій не відповідає фотографіям цього товару."
+      }, 400);
     }
 
-    const statements = ids.map((id, index) =>
-      env.DB.prepare(`
-        UPDATE product_images
-        SET position = ?
-        WHERE id = ?
-          AND product_id = ?
-      `).bind(index, id, productId)
-    );
-
-    if (statements.length) {
-      await env.DB.batch(statements);
+    if (requestedIds.length) {
+      await env.DB.batch(
+        requestedIds.map((id, index) =>
+          env.DB.prepare(`
+            UPDATE product_images
+            SET position = ?
+            WHERE id = ?
+              AND product_id = ?
+          `).bind(index, id, productId)
+        )
+      );
     }
 
     return json({
       ok: true,
-      images: await getProductImages(env, productId),
-      message: "Порядок фотографій оновлено."
+      message: "Порядок фотографій збережено."
     });
   } catch (error) {
     console.error("Reorder images error:", error.message);
@@ -1983,14 +1862,12 @@ async function adminReorderProductImages(request, env, productId) {
   }
 }
 
-/* =========================================================
-   PRIVATE R2 IMAGE DELIVERY
-========================================================= */
+/* -------------------- PRIVATE R2 IMAGE DELIVERY -------------------- */
 
-async function serveProductImage(request, env, url) {
+async function serveProductImage(request, env) {
   if (!env.PRODUCT_IMAGES) {
     return new Response("Image storage is not configured.", {
-      status: 503
+      status: 500
     });
   }
 
@@ -2001,30 +1878,18 @@ async function serveProductImage(request, env, url) {
     });
   }
 
-  let key;
+  const url = new URL(request.url);
+  const key = getProductImageKeyFromUrl(url.pathname);
 
-  try {
-    const encodedKey = url.pathname.slice("/media/".length);
-    key = decodeURIComponent(encodedKey);
-  } catch {
-    return new Response("Invalid image path.", { status: 400 });
-  }
-
-  if (
-    !key ||
-    !key.startsWith("products/") ||
-    key.includes("..") ||
-    key.includes("\\") ||
-    key.includes("\0")
-  ) {
-    return new Response("Invalid image path.", { status: 400 });
+  if (!key) {
+    return new Response("Not found.", { status: 404 });
   }
 
   try {
     const object = await env.PRODUCT_IMAGES.get(key);
 
     if (!object) {
-      return new Response("Image not found.", { status: 404 });
+      return new Response("Not found.", { status: 404 });
     }
 
     const headers = new Headers();
@@ -2038,10 +1903,6 @@ async function serveProductImage(request, env, url) {
     );
     headers.set("X-Content-Type-Options", "nosniff");
 
-    if (!headers.has("Content-Type")) {
-      headers.set("Content-Type", "application/octet-stream");
-    }
-
     if (request.method === "HEAD") {
       return new Response(null, {
         status: 200,
@@ -2054,15 +1915,15 @@ async function serveProductImage(request, env, url) {
       headers
     });
   } catch (error) {
-    console.error("R2 image delivery error:", error.message);
+    console.error("Serve image error:", error.message);
 
-    return new Response("Image service error.", { status: 500 });
+    return new Response("Image unavailable.", {
+      status: 500
+    });
   }
 }
 
-/* =========================================================
-   CREATE ORDER — DYNAMIC D1 PRODUCTS
-========================================================= */
+/* -------------------- CREATE ORDER -------------------- */
 
 async function createOrder(request, env) {
   const body = await readJson(request);
@@ -2125,25 +1986,14 @@ async function createOrder(request, env) {
     }, 400);
   }
 
-  // Об'єднуємо однакові товари, щоб не можна було обійти перевірку залишків.
+  // Об'єднуємо повторні позиції одного товару.
   const quantities = new Map();
 
   for (const item of body.items) {
     const productId = cleanText(item?.id, 100);
-    const quantity = Number(item?.quantity);
+    const quantity = safeInteger(item?.quantity, 1, 99);
 
-    if (!productId) {
-      return json({
-        ok: false,
-        error: "Некоректний товар у кошику."
-      }, 400);
-    }
-
-    if (
-      !Number.isSafeInteger(quantity) ||
-      quantity < 1 ||
-      quantity > 99
-    ) {
+    if (!productId || quantity === null) {
       return json({
         ok: false,
         error: "Некоректна кількість товару."
@@ -2157,81 +2007,48 @@ async function createOrder(request, env) {
   }
 
   const orderItems = [];
+  const reservations = [];
   let totalAmount = 0;
 
   try {
     for (const [productId, quantity] of quantities.entries()) {
       if (quantity > 99) {
-        return json({
-          ok: false,
-          error: "Максимальна кількість одного товару — 99."
-        }, 400);
+        throw new Error("Кількість одного товару не може перевищувати 99.");
       }
 
-      const product = await getProductById(env, productId);
+      const product = await env.DB.prepare(`
+        SELECT
+          id,
+          name,
+          price,
+          sale_price,
+          stock,
+          track_stock,
+          active
+        FROM products
+        WHERE id = ?
+        LIMIT 1
+      `).bind(productId).first();
 
-      if (!product || !product.active) {
-        return json({
-          ok: false,
-          error: "Один із товарів більше недоступний."
-        }, 400);
+      if (!product || Number(product.active) !== 1) {
+        throw new Error("Один із товарів більше недоступний.");
       }
 
-      if (product.track_stock && Number(product.stock) < quantity) {
-        return json({
-          ok: false,
-          error: `Недостатньо товару «${product.name}» на складі. Залишок: ${product.stock}.`
-        }, 409);
-      }
-
-      const price = effectivePrice(product);
-      const lineTotal = price * quantity;
+      const regularPrice = Number(product.price);
+      const effectivePrice = product.sale_price === null
+        ? regularPrice
+        : Number(product.sale_price);
 
       if (
-        !Number.isSafeInteger(price) ||
-        price <= 0 ||
-        !Number.isSafeInteger(lineTotal)
+        !Number.isSafeInteger(effectivePrice) ||
+        effectivePrice <= 0
       ) {
-        return json({
-          ok: false,
-          error: "Некоректна ціна товару."
-        }, 400);
+        throw new Error("Некоректна ціна товару.");
       }
 
-      totalAmount += lineTotal;
-
-      orderItems.push({
-        id: productId,
-        name: product.name,
-        price,
-        quantity,
-        trackStock: Boolean(product.track_stock)
-      });
-    }
-
-    if (
-      !Number.isSafeInteger(totalAmount) ||
-      totalAmount <= 0
-    ) {
-      return json({
-        ok: false,
-        error: "Некоректна сума замовлення."
-      }, 400);
-    }
-
-    /*
-      Резервуємо залишки умовним UPDATE.
-      Якщо товару вже не вистачає через паралельне замовлення,
-      UPDATE не змінить рядок і оформлення буде зупинено.
-    */
-
-    const reserved = [];
-
-    try {
-      for (const item of orderItems) {
-        if (!item.trackStock) continue;
-
-        const result = await env.DB.prepare(`
+      if (Number(product.track_stock) === 1) {
+        // Умовне списання не дозволяє продати більше наявного залишку.
+        const reservation = await env.DB.prepare(`
           UPDATE products
           SET stock = stock - ?,
               updated_at = CURRENT_TIMESTAMP
@@ -2239,165 +2056,194 @@ async function createOrder(request, env) {
             AND active = 1
             AND track_stock = 1
             AND stock >= ?
-        `).bind(
-          item.quantity,
-          item.id,
-          item.quantity
-        ).run();
+        `).bind(quantity, productId, quantity).run();
 
-        if (!(result.meta?.changes > 0)) {
+        if (!(reservation.meta?.changes || 0)) {
           throw new Error(
-            `Не вдалося зарезервувати товар «${item.name}». Можливо, його вже купили.`
+            `Недостатньо товару «${product.name}» на складі.`
           );
         }
 
-        reserved.push(item);
+        reservations.push({
+          id: productId,
+          quantity
+        });
       }
 
-      const orderNumber = generateOrderNumber();
+      const lineTotal = effectivePrice * quantity;
 
-      const statements = [
-        env.DB.prepare(`
-          INSERT INTO orders (
-            order_number,
-            customer_name,
-            customer_phone,
-            customer_city,
-            customer_address,
-            customer_comment,
-            total_amount,
-            status
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
-        `).bind(
-          orderNumber,
-          customerName,
-          customerPhone,
-          customerCity,
-          customerAddress,
-          customerComment,
-          totalAmount
-        ),
+      if (!Number.isSafeInteger(lineTotal)) {
+        throw new Error("Некоректна сума замовлення.");
+      }
 
-        ...orderItems.map(item =>
-          env.DB.prepare(`
-            INSERT INTO order_items (
-              order_id,
-              product_id,
-              product_name,
-              price,
-              quantity
-            )
-            SELECT
-              id,
-              ?,
-              ?,
-              ?,
-              ?
-            FROM orders
-            WHERE order_number = ?
-          `).bind(
-            item.id,
-            item.name,
-            item.price,
-            item.quantity,
-            orderNumber
-          )
+      totalAmount += lineTotal;
+
+      orderItems.push({
+        id: productId,
+        name: product.name,
+        price: effectivePrice,
+        quantity
+      });
+    }
+
+    if (
+      !Number.isSafeInteger(totalAmount) ||
+      totalAmount <= 0
+    ) {
+      throw new Error("Некоректна сума замовлення.");
+    }
+
+    const orderNumber = generateOrderNumber();
+
+    const statements = [
+      env.DB.prepare(`
+        INSERT INTO orders (
+          order_number,
+          customer_name,
+          customer_phone,
+          customer_city,
+          customer_address,
+          customer_comment,
+          total_amount,
+          status
         )
-      ];
-
-      await env.DB.batch(statements);
-
-      const savedOrder = await env.DB.prepare(`
-        SELECT id
-        FROM orders
-        WHERE order_number = ?
-        LIMIT 1
-      `).bind(orderNumber).first();
-
-      if (!savedOrder) {
-        throw new Error("Не вдалося отримати ID замовлення.");
-      }
-
-      const orderId = savedOrder.id;
-      let telegramLink = null;
-
-      try {
-        const rawToken = createTelegramLinkToken();
-        const tokenHash = await sha256Hex(rawToken);
-
-        await env.DB.prepare(`
-          INSERT INTO telegram_link_tokens (
-            order_id,
-            token_hash,
-            expires_at
-          )
-          VALUES (?, ?, datetime('now', '+24 hours'))
-        `).bind(orderId, tokenHash).run();
-
-        telegramLink =
-          `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${rawToken}`;
-      } catch (error) {
-        console.error(
-          "Telegram link creation error:",
-          error.message
-        );
-      }
-
-      const order = {
-        id: orderId,
+        VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
+      `).bind(
         orderNumber,
         customerName,
         customerPhone,
         customerCity,
         customerAddress,
         customerComment,
-        total: totalAmount,
-        items: orderItems
-      };
+        totalAmount
+      ),
 
-      await notifyTelegram(env, order);
+      ...orderItems.map(item =>
+        env.DB.prepare(`
+          INSERT INTO order_items (
+            order_id,
+            product_id,
+            product_name,
+            price,
+            quantity
+          )
+          SELECT
+            id,
+            ?,
+            ?,
+            ?,
+            ?
+          FROM orders
+          WHERE order_number = ?
+        `).bind(
+          item.id,
+          item.name,
+          item.price,
+          item.quantity,
+          orderNumber
+        )
+      )
+    ];
 
-      return json({
-        ok: true,
-        order_id: orderId,
-        order_number: orderNumber,
-        total_amount: totalAmount,
-        orderNumber,
-        total: totalAmount,
-        telegram_link: telegramLink,
-        telegramLink,
-        message: "Замовлення успішно оформлено!"
-      }, 201);
-    } catch (error) {
-      // Повертаємо зарезервований залишок, якщо створення замовлення не вдалося.
-      for (const item of reserved) {
-        await env.DB.prepare(`
-          UPDATE products
-          SET stock = stock + ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-        `).bind(item.quantity, item.id).run().catch(rollbackError => {
-          console.error(
-            "Stock rollback error:",
-            rollbackError.message
-          );
-        });
-      }
+    await env.DB.batch(statements);
 
-      throw error;
+    const savedOrder = await env.DB.prepare(`
+      SELECT id
+      FROM orders
+      WHERE order_number = ?
+      LIMIT 1
+    `).bind(orderNumber).first();
+
+    if (!savedOrder) {
+      throw new Error("Не вдалося отримати ID замовлення.");
     }
+
+    const orderId = savedOrder.id;
+    let telegramLink = null;
+
+    try {
+      const rawToken = createTelegramLinkToken();
+      const tokenHash = await sha256Hex(rawToken);
+
+      await env.DB.prepare(`
+        INSERT INTO telegram_link_tokens (
+          order_id,
+          token_hash,
+          expires_at
+        )
+        VALUES (?, ?, datetime('now', '+24 hours'))
+      `).bind(orderId, tokenHash).run();
+
+      telegramLink =
+        `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${rawToken}`;
+    } catch (error) {
+      console.error(
+        "Telegram link creation error:",
+        error.message
+      );
+    }
+
+    const order = {
+      id: orderId,
+      orderNumber,
+      customerName,
+      customerPhone,
+      customerCity,
+      customerAddress,
+      customerComment,
+      total: totalAmount,
+      items: orderItems
+    };
+
+    await notifyTelegram(env, order);
+
+    return json({
+      ok: true,
+      order_id: orderId,
+      order_number: orderNumber,
+      total_amount: totalAmount,
+      orderNumber,
+      total: totalAmount,
+      telegram_link: telegramLink,
+      telegramLink,
+      message: "Замовлення успішно оформлено!"
+    }, 201);
   } catch (error) {
     console.error("Create order error:", error.message);
 
+    // Якщо оформлення не завершилося, повертаємо зарезервований залишок.
+    if (reservations.length) {
+      try {
+        await env.DB.batch(
+          reservations.map(item =>
+            env.DB.prepare(`
+              UPDATE products
+              SET stock = stock + ?,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE id = ?
+            `).bind(item.quantity, item.id)
+          )
+        );
+      } catch (restoreError) {
+        console.error(
+          "Stock restoration error:",
+          restoreError.message
+        );
+      }
+    }
+
+    const message = error.message || "";
+
     if (
-      error.message &&
-      error.message.startsWith("Не вдалося зарезервувати товар")
+      message.includes("недоступний") ||
+      message.includes("Недостатньо") ||
+      message.includes("перевищувати") ||
+      message.includes("Некоректна")
     ) {
       return json({
         ok: false,
-        error: error.message
-      }, 409);
+        error: message
+      }, 400);
     }
 
     return json({
@@ -2407,9 +2253,7 @@ async function createOrder(request, env) {
   }
 }
 
-/* =========================================================
-   ADMIN LOGIN
-========================================================= */
+/* -------------------- ADMIN LOGIN -------------------- */
 
 async function adminLogin(request, env) {
   if (!env.ADMIN_PASSWORD) {
@@ -2448,9 +2292,7 @@ async function adminLogout() {
   });
 }
 
-/* =========================================================
-   ADMIN ORDERS
-========================================================= */
+/* -------------------- ADMIN ORDERS -------------------- */
 
 async function adminGetOrders(env) {
   try {
@@ -2537,7 +2379,11 @@ async function adminUpdateOrder(request, env, orderId) {
         WHERE id = ?
       `).bind(status, orderId).run();
 
-      await notifyBuyerOrderStatus(env, orderId, status);
+      await notifyBuyerOrderStatus(
+        env,
+        orderId,
+        status
+      );
     }
 
     return json({
@@ -2555,9 +2401,7 @@ async function adminUpdateOrder(request, env, orderId) {
   }
 }
 
-/* =========================================================
-   ADMIN SUPPORT API
-========================================================= */
+/* -------------------- ADMIN SUPPORT API -------------------- */
 
 async function adminGetSupportChats(env) {
   try {
@@ -2791,9 +2635,7 @@ async function adminCloseSupport(env, chatId) {
   }
 }
 
-/* =========================================================
-   ROUTER
-========================================================= */
+/* -------------------- ROUTER -------------------- */
 
 export default {
   async fetch(request, env) {
@@ -2802,25 +2644,25 @@ export default {
     const method = request.method.toUpperCase();
 
     try {
-      /* ---------------- PUBLIC IMAGE DELIVERY ---------------- */
-
-      if (path.startsWith("/media/")) {
-        return serveProductImage(request, env, url);
-      }
-
-      /* ---------------- HEALTH ---------------- */
+      /* ---------- HEALTH ---------- */
 
       if (path === "/api/health" && method === "GET") {
         return healthCheck(env);
       }
 
-      /* ---------------- PUBLIC PRODUCTS ---------------- */
+      /* ---------- PRIVATE PRODUCT IMAGES ---------- */
+
+      if (path.startsWith("/media/")) {
+        return serveProductImage(request, env);
+      }
+
+      /* ---------- PUBLIC PRODUCT CATALOG ---------- */
 
       if (path === "/api/products" && method === "GET") {
         return publicGetProducts(request, env);
       }
 
-      /* ---------------- TELEGRAM WEBHOOK ---------------- */
+      /* ---------- TELEGRAM WEBHOOK ---------- */
 
       if (path === "/api/telegram/webhook" && method === "GET") {
         return json({
@@ -2844,13 +2686,13 @@ export default {
         });
       }
 
-      /* ---------------- CREATE ORDER ---------------- */
+      /* ---------- CREATE ORDER ---------- */
 
       if (path === "/api/orders" && method === "POST") {
         return createOrder(request, env);
       }
 
-      /* ---------------- ADMIN LOGIN ---------------- */
+      /* ---------- ADMIN LOGIN ---------- */
 
       if (path === "/api/admin/login" && method === "POST") {
         return adminLogin(request, env);
@@ -2879,7 +2721,7 @@ export default {
         });
       }
 
-      /* ---------------- ADMIN API AUTHORIZATION ---------------- */
+      /* ---------- PROTECTED ADMIN API ---------- */
 
       if (path.startsWith("/api/admin/")) {
         const authorized = await requireAdmin(request, env);
@@ -2891,7 +2733,7 @@ export default {
           }, 401);
         }
 
-        /* ---------------- TELEGRAM WEBHOOK SETUP ---------------- */
+        /* ---------- TELEGRAM WEBHOOK SETUP ---------- */
 
         if (path === "/api/admin/telegram/webhook/setup") {
           if (method !== "POST") {
@@ -2920,7 +2762,7 @@ export default {
           }
         }
 
-        /* ---------------- ADMIN PRODUCTS ---------------- */
+        /* ---------- ADMIN PRODUCTS ---------- */
 
         if (path === "/api/admin/products" && method === "GET") {
           return adminGetProducts(env);
@@ -2930,28 +2772,31 @@ export default {
           return adminCreateProduct(request, env);
         }
 
+        const productImageOrderMatch = path.match(
+          /^\/api\/admin\/products\/([^/]+)\/images\/order$/
+        );
+
+        if (
+          productImageOrderMatch &&
+          method === "PATCH"
+        ) {
+          return adminReorderProductImages(
+            request,
+            env,
+            decodeURIComponent(productImageOrderMatch[1])
+          );
+        }
+
         const productImagesMatch = path.match(
           /^\/api\/admin\/products\/([^/]+)\/images$/
         );
 
-        if (productImagesMatch) {
-          const productId = decodeURIComponent(productImagesMatch[1]);
-
-          if (method === "POST") {
-            return adminUploadProductImages(
-              request,
-              env,
-              productId
-            );
-          }
-
-          if (method === "PATCH") {
-            return adminReorderProductImages(
-              request,
-              env,
-              productId
-            );
-          }
+        if (productImagesMatch && method === "POST") {
+          return adminUploadProductImages(
+            request,
+            env,
+            decodeURIComponent(productImagesMatch[1])
+          );
         }
 
         const productImageDeleteMatch = path.match(
@@ -2976,7 +2821,7 @@ export default {
         if (productMatch) {
           const productId = decodeURIComponent(productMatch[1]);
 
-          if (method === "PATCH" || method === "PUT") {
+          if (method === "PATCH") {
             return adminUpdateProduct(
               request,
               env,
@@ -2985,14 +2830,14 @@ export default {
           }
 
           if (method === "DELETE") {
-            return adminDeactivateProduct(
+            return adminDeleteProduct(
               env,
               productId
             );
           }
         }
 
-        /* ---------------- ADMIN ORDERS ---------------- */
+        /* ---------- ADMIN ORDERS ---------- */
 
         if (path === "/api/admin/orders" && method === "GET") {
           return adminGetOrders(env);
@@ -3010,7 +2855,7 @@ export default {
           );
         }
 
-        /* ---------------- ADMIN SUPPORT ---------------- */
+        /* ---------- ADMIN SUPPORT ---------- */
 
         if (path === "/api/admin/support" && method === "GET") {
           return adminGetSupportChats(env);
@@ -3056,7 +2901,7 @@ export default {
         }, 404);
       }
 
-      /* ---------------- STATIC ASSETS ---------------- */
+      /* ---------- STATIC ASSETS ---------- */
 
       if (env.ASSETS) {
         return env.ASSETS.fetch(request);
@@ -3066,7 +2911,6 @@ export default {
         ok: false,
         error: "Not found."
       }, 404);
-
     } catch (error) {
       console.error("Worker error:", error.message);
 
