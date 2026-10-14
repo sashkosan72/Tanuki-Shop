@@ -1,1167 +1,1333 @@
+Файл: "admin/index.html"
+
 <!DOCTYPE html>
 <html lang="uk">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#fff4f7">
 <title>Адмін-панель — Tanuki Shop</title>
+
 <style>
+:root{
+  --pink:#ff6f91;
+  --pink-dark:#e9517b;
+  --pink-light:#fff0f5;
+  --bg:#fff8f5;
+  --text:#29232a;
+  --muted:#756b74;
+  --border:#f0dfe5;
+  --green:#16834a;
+  --red:#b42345;
+  --shadow:0 8px 25px #46233210;
+}
 *{box-sizing:border-box}
-body{margin:0;background:#fff8f5;color:#29232a;font-family:Arial,sans-serif;line-height:1.5}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:Arial,sans-serif;
+  line-height:1.5;
+}
 button,input,select,textarea{font:inherit}
-.wrap{width:min(1100px,calc(100% - 28px));margin:30px auto}
-.panel,.order,.chat-card{background:white;border:1px solid #f0dfe5;border-radius:18px;padding:20px;box-shadow:0 8px 25px #46233210}
-.login{max-width:420px;margin:12vh auto}
-.brand{font-size:24px;font-weight:800}
-.muted{color:#756b74}
-.field{display:grid;gap:7px;margin:18px 0}
-input,textarea{width:100%;padding:12px;border:1px solid #e8d7df;border-radius:10px}
+button{
+  border:0;
+  border-radius:10px;
+  padding:11px 16px;
+  background:var(--pink);
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+  transition:.18s ease;
+}
+button:hover:not(:disabled){
+  background:var(--pink-dark);
+  transform:translateY(-1px);
+}
+button:disabled{opacity:.55;cursor:wait}
+input,textarea,select{
+  width:100%;
+  padding:12px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:white;
+  color:var(--text);
+}
+input:focus,textarea:focus,select:focus,button:focus-visible{
+  outline:3px solid #ff6f9150;
+  outline-offset:2px;
+}
 textarea{resize:vertical;min-height:90px}
-button{border:0;border-radius:10px;padding:11px 16px;background:#ff6f91;color:white;font-weight:bold;cursor:pointer}
-button:disabled{opacity:.6;cursor:wait}
-.secondary{background:#f5e8ed;color:#46343d}
-.danger{background:#a9364d}
+.wrap{width:min(1180px,calc(100% - 28px));margin:28px auto}
+.panel,.order,.chat-card,.stat{
+  background:white;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:20px;
+  box-shadow:var(--shadow);
+}
+.login{max-width:420px;margin:12vh auto}
+.brand{font-size:25px;font-weight:800}
+.muted{color:var(--muted)}
+.field{display:grid;gap:7px;margin:15px 0}
 .hidden{display:none!important}
-.error{color:#b42345}
-.success{color:#16834a}
-.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:20px}
-.stats{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
-.stat{background:white;border:1px solid #f0dfe5;border-radius:14px;padding:14px 18px;min-width:145px}
-.stat strong{display:block;font-size:24px}
+.error{color:var(--red)}
+.success{color:var(--green)}
+.secondary{background:#f5e8ed;color:#46343d}
+.secondary:hover:not(:disabled){background:#ead6df}
+.danger{background:#a9364d}
+.danger:hover:not(:disabled){background:#87283d}
+.top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:15px;
+  margin-bottom:20px;
+}
+.actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
+.stat{padding:15px}
+.stat strong{display:block;font-size:25px;margin-top:5px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
+.tab.active{background:#46343d;color:white}
+.filter-panel{margin-bottom:16px}
+.filter-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  gap:12px;
+}
 .orders{display:grid;gap:14px}
 .order-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .order h3{margin:0 0 5px}
-.details{color:#756b74;font-size:14px;margin:12px 0}
+.details{color:var(--muted);font-size:14px;margin:12px 0}
 .items{padding-left:20px}
-.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
-select{padding:10px;border:1px solid #e8d7df;border-radius:9px;background:white}
-.empty{text-align:center;padding:35px;color:#756b74}
-.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}
-.tab.active{background:#46343d;color:white}
-.support-layout{display:grid;grid-template-columns:minmax(230px,330px) 1fr;gap:14px}
+.empty{text-align:center;padding:30px;color:var(--muted)}
+hr{border:0;border-top:1px solid var(--border);margin:20px 0}
+
+/* ТОВАРИ */
+.product-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.product-layout{
+  display:grid;
+  grid-template-columns:minmax(230px,340px) minmax(0,1fr);
+  gap:16px;
+  align-items:start;
+}
+.product-list{display:grid;gap:10px}
+.product-row{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  text-align:left;
+  background:white;
+  color:var(--text);
+  border:1px solid var(--border);
+  padding:11px;
+  width:100%;
+}
+.product-row:hover{background:#fff7fa;color:var(--text)}
+.product-row.active{border:2px solid var(--pink)}
+.product-row img{
+  width:60px;height:60px;object-fit:contain;
+  border-radius:10px;background:#fff5f8;
+}
+.product-row-info{min-width:0;flex:1}
+.product-row-info strong{display:block;overflow-wrap:anywhere}
+.product-row small{display:block;color:var(--muted);overflow-wrap:anywhere}
+.product-form-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:0 14px;
+}
+.product-form-grid .field{margin:10px 0}
+.product-form-grid .wide{grid-column:1/-1}
+.check-line{display:flex;gap:9px;align-items:center;margin:12px 0}
+.check-line input{width:auto}
+.image-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(125px,1fr));
+  gap:12px;margin:14px 0;
+}
+.image-card{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:8px;
+  min-width:0;
+  background:white;
+}
+.image-preview{
+  display:block;
+  width:100%;
+  height:120px;
+  object-fit:contain;
+  background:#fff8fa;
+  border-radius:8px;
+  cursor:zoom-in;
+}
+.image-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.image-actions button{padding:7px 9px;font-size:12px}
+.main-photo{font-size:12px;color:var(--green);font-weight:700;margin:6px 0}
+.product-badges{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.pill{
+  display:inline-block;
+  padding:3px 8px;
+  border-radius:30px;
+  background:var(--pink-light);
+  color:#8c3655;
+  font-size:12px;
+  font-weight:bold;
+}
+.pill.green{background:#e6f7ed;color:var(--green)}
+.pill.gray{background:#eee;color:#666}
+
+/* ПІДТРИМКА */
+.support-layout{
+  display:grid;
+  grid-template-columns:minmax(230px,330px) minmax(0,1fr);
+  gap:14px;
+}
 .chat-list{display:grid;gap:10px;align-content:start}
-.chat-card{padding:14px;cursor:pointer;text-align:left;color:#29232a;width:100%;background:white;border:1px solid #f0dfe5}
-.chat-card.active{border:2px solid #ff6f91}
+.chat-card{
+  padding:14px;
+  cursor:pointer;
+  text-align:left;
+  color:var(--text);
+  width:100%;
+}
+.chat-card.active{border:2px solid var(--pink)}
 .chat-card strong{display:block}
-.chat-preview{font-size:13px;color:#756b74;overflow-wrap:anywhere;margin-top:5px}
-.chat-status{font-size:12px;color:#16834a}
+.chat-preview{
+  font-size:13px;color:var(--muted);
+  overflow-wrap:anywhere;margin-top:5px;
+}
+.chat-status{font-size:12px;color:var(--green)}
 .chat-status.closed{color:#9b4354}
 .chat-status.waiting{color:#b36a00;font-weight:700}
 .unread-badge{
-display:inline-block;
-margin-left:6px;
-padding:2px 7px;
-border-radius:20px;
-background:#ff6f91;
-color:white;
-font-size:11px;
-font-weight:700;
-vertical-align:middle;
+  display:inline-block;margin-left:6px;padding:2px 7px;
+  border-radius:20px;background:var(--pink);color:white;
+  font-size:11px;font-weight:700;
 }
 .chat-window{min-height:450px;display:flex;flex-direction:column}
-.chat-heading{padding-bottom:12px;border-bottom:1px solid #f0dfe5}
-.messages{display:flex;flex-direction:column;gap:10px;padding:16px 0;flex:1;max-height:480px;overflow:auto}
-.message{max-width:85%;padding:11px 14px;border-radius:14px;overflow-wrap:anywhere;white-space:pre-wrap}
+.chat-heading{padding-bottom:12px;border-bottom:1px solid var(--border)}
+.messages{
+  display:flex;flex-direction:column;gap:10px;
+  padding:16px 0;flex:1;max-height:480px;overflow:auto;
+}
+.message{
+  max-width:85%;padding:11px 14px;border-radius:14px;
+  overflow-wrap:anywhere;white-space:pre-wrap;
+}
 .message.buyer{background:#f5e8ed;align-self:flex-start}
 .message.admin{background:#ffe0e9;align-self:flex-end}
-.message small{display:block;color:#756b74;font-size:11px;margin-top:5px}
-.reply-form{display:grid;gap:9px;border-top:1px solid #f0dfe5;padding-top:14px}
+.message small{display:block;color:var(--muted);font-size:11px;margin-top:5px}
+.reply-form{display:grid;gap:9px;border-top:1px solid var(--border);padding-top:14px}
 .reply-actions{display:flex;gap:8px;flex-wrap:wrap}
-#webhookSetupMessage{margin:8px 0 16px}
-.filter-panel{margin-bottom:16px}
-.filter-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
-.filter-count{margin-bottom:0}
-@media(max-width:700px){
-.top{align-items:flex-start;flex-direction:column}
-.panel,.order{padding:15px}
-.support-layout{grid-template-columns:1fr}
-.chat-list{max-height:280px;overflow:auto}
-.chat-window{min-height:350px}
+
+/* ПЕРЕГЛЯД ФОТО */
+.preview-overlay{
+  position:fixed;inset:0;z-index:10000;
+  display:none;align-items:center;justify-content:center;
+  padding:20px;background:#120a10ed;
 }
-/* PRODUCT ADMIN */
-.product-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:14px 0}
-.product-layout{display:grid;grid-template-columns:minmax(230px,320px) 1fr;gap:16px;align-items:start}
-.product-list{display:grid;gap:10px}
-.product-row{display:flex;gap:10px;align-items:center;text-align:left;background:#fff;color:#29232a;border:1px solid #f0dfe5;padding:12px;width:100%}
-.product-row.active{border:2px solid #ff6f91}
-.product-row img{width:58px;height:58px;object-fit:contain;border-radius:9px;background:#fff5f8}
-.product-row .product-row-info{min-width:0;flex:1}
-.product-row small{display:block;color:#756b74;overflow-wrap:anywhere}
-.product-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 14px}
-.product-form-grid .field{margin:10px 0}
-.product-form-grid .wide{grid-column:1/-1}
-.product-form-grid input,.product-form-grid select,.product-form-grid textarea{width:100%;min-width:0}
-.check-line{display:flex;gap:9px;align-items:center;margin:10px 0}
-.check-line input{width:auto}
-.image-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(125px,1fr));gap:12px;margin:14px 0}
-.image-card{border:1px solid #f0dfe5;border-radius:12px;padding:8px;min-width:0}
-.image-card img{width:100%;height:115px;object-fit:contain;background:#fff8fa;border-radius:8px}
-.image-card .image-actions{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
-.image-card button{padding:7px 9px;font-size:12px}
-.image-card .main-photo{font-size:12px;color:#16834a;font-weight:700;margin:5px 0}
-@media(max-width:700px){
-.product-layout{grid-template-columns:1fr}
-.product-form-grid{grid-template-columns:1fr}
-.product-form-grid .wide{grid-column:auto}
+.preview-overlay.active{display:flex}
+.preview-box{position:relative;max-width:95vw;max-height:95vh;text-align:center}
+.preview-box img{
+  display:block;max-width:90vw;max-height:82vh;
+  object-fit:contain;border-radius:12px;
+}
+.preview-close{position:absolute;right:-10px;top:-14px;border-radius:50%;width:42px;height:42px;padding:0}
+.preview-caption{color:white;margin-top:10px}
+
+/* ПОВІДОМЛЕННЯ */
+.toast{
+  position:fixed;z-index:12000;bottom:22px;left:50%;
+  transform:translate(-50%,20px);
+  max-width:90vw;padding:13px 18px;border-radius:30px;
+  background:#46343d;color:white;box-shadow:var(--shadow);
+  opacity:0;pointer-events:none;transition:.2s;
+  text-align:center;
+}
+.toast.visible{opacity:1;transform:translate(-50%,0)}
+#webhookSetupMessage{margin:8px 0 16px}
+
+@media(max-width:760px){
+  .top{align-items:flex-start;flex-direction:column}
+  .product-layout,.support-layout{grid-template-columns:1fr}
+  .product-form-grid{grid-template-columns:1fr}
+  .product-form-grid .wide{grid-column:auto}
+  .chat-list{max-height:280px;overflow:auto}
+  .chat-window{min-height:350px}
+  .panel,.order{padding:15px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{transition:none!important;animation:none!important}
 }
 </style>
 </head>
+
 <body>
 <main class="wrap">
 
 <section id="loginPanel" class="panel login">
-<div class="brand">🦝 Tanuki Shop</div>
-<h1>Вхід адміністратора</h1>
-<p class="muted">Увійдіть, щоб керувати магазином.</p>
-<form id="loginForm">
-<label class="field">
-Пароль адміністратора
-<input id="password" type="password" autocomplete="current-password" required>
-</label>
-<button id="loginButton" type="submit">Увійти</button>
-<p id="loginError" class="error" role="alert"></p>
-</form>
+  <div class="brand">🦝 Tanuki Shop</div>
+  <h1>Вхід адміністратора</h1>
+  <p class="muted">Увійдіть, щоб керувати магазином.</p>
+  <form id="loginForm">
+    <label class="field">Пароль адміністратора
+      <input id="password" type="password" autocomplete="current-password" required>
+    </label>
+    <button id="loginButton" type="submit">Увійти</button>
+    <p id="loginError" class="error" role="alert"></p>
+  </form>
 </section>
 
 <section id="dashboard" class="hidden">
-<header class="top">
-<div>
-<div class="brand">🦝 Tanuki Shop</div>
-<div class="muted">Панель керування магазином</div>
-</div>
-<div class="actions">
-<button id="refreshButton" class="secondary" type="button">Оновити</button>
-<button id="webhookSetupButton" class="secondary" type="button">
-Налаштувати Telegram Webhook
-</button>
-<button id="logoutButton" type="button">Вийти</button>
-</div>
-</header>
+  <header class="top">
+    <div>
+      <div class="brand">🦝 Tanuki Shop</div>
+      <div class="muted">Панель керування магазином</div>
+    </div>
+    <div class="actions">
+      <button id="refreshButton" class="secondary" type="button">↻ Оновити</button>
+      <button id="webhookSetupButton" class="secondary" type="button">Налаштувати Telegram Webhook</button>
+      <button id="logoutButton" type="button">Вийти</button>
+    </div>
+  </header>
 
-<p id="webhookSetupMessage" class="muted" role="status" aria-live="polite"></p>
+  <p id="webhookSetupMessage" class="muted" role="status" aria-live="polite"></p>
 
-<nav class="tabs">
-<button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
-<button class="tab secondary" data-tab="supportTab" type="button">💬 Підтримка</button>
-<button class="tab secondary" data-tab="productsTab" type="button">📦 Товари</button>
-</nav>
+  <nav class="tabs" aria-label="Розділи адмін-панелі">
+    <button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
+    <button class="tab secondary" data-tab="productsTab" type="button">📦 Товари</button>
+    <button class="tab secondary" data-tab="supportTab" type="button">💬 Підтримка</button>
+  </nav>
 
-<section id="ordersTab">
-<div class="panel filter-panel">
-<div class="filter-grid">
-<input id="orderSearch" type="search" placeholder="🔎 Номер, ім'я або телефон" aria-label="Пошук замовлень">
-<select id="orderStatusFilter" aria-label="Фільтр за статусом">
-<option value="all">Усі статуси</option>
-<option value="new">Нові</option>
-<option value="confirmed">Підтверджені</option>
-<option value="shipped">Відправлені</option>
-<option value="completed">Завершені</option>
-<option value="cancelled">Скасовані</option>
-</select>
-</div>
-<div class="actions">
-<button id="resetOrderFilters" class="secondary" type="button">Скинути фільтри</button>
-</div>
-<p id="orderFilterCount" class="muted filter-count"></p>
-</div>
+  <!-- ЗАМОВЛЕННЯ -->
+  <section id="ordersTab">
+    <div class="panel filter-panel">
+      <div class="filter-grid">
+        <input id="orderSearch" type="search" placeholder="🔎 Номер, ім'я або телефон" aria-label="Пошук замовлень">
+        <select id="orderStatusFilter" aria-label="Фільтр за статусом">
+          <option value="all">Усі статуси</option>
+          <option value="new">Нові</option>
+          <option value="confirmed">Підтверджені</option>
+          <option value="shipped">Відправлені</option>
+          <option value="completed">Завершені</option>
+          <option value="cancelled">Скасовані</option>
+        </select>
+      </div>
+      <div class="actions">
+        <button id="resetOrderFilters" class="secondary" type="button">Скинути фільтри</button>
+      </div>
+      <p id="orderFilterCount" class="muted"></p>
+    </div>
 
-<div class="stats">
-<div class="stat">Усього замовлень<strong id="orderCount">0</strong></div>
-<div class="stat">Нові<strong id="newCount">0</strong></div>
-<div class="stat">Сума<strong id="totalAmount">0 ₴</strong></div>
-</div>
+    <div class="stats">
+      <div class="stat">Усього замовлень<strong id="orderCount">0</strong></div>
+      <div class="stat">Нові<strong id="newCount">0</strong></div>
+      <div class="stat">Загальна сума<strong id="totalAmount">0 ₴</strong></div>
+    </div>
+    <div id="orders" class="orders">
+      <div class="panel empty">Завантаження…</div>
+    </div>
+  </section>
 
-<div id="orders" class="orders">
-<div class="panel empty">Завантаження…</div>
-</div>
-</section>
+  <!-- ТОВАРИ -->
+  <section id="productsTab" class="hidden">
+    <h2>📦 Керування товарами</h2>
+    <p class="muted">Створюйте товари, змінюйте ціни та завантажуйте до 8 фотографій на товар. JPG, PNG, WEBP або GIF — до 8 МБ кожне.</p>
 
-<!-- КЕРУВАННЯ ТОВАРАМИ -->
-<section id="productsTab" class="hidden">
-<h2>📦 Керування товарами</h2>
-<p class="muted">Створюйте товари, змінюйте ціни та завантажуйте до 8 фото на товар (JPG, PNG, WEBP, GIF; до 8 МБ кожне).</p>
+    <div class="product-toolbar">
+      <button id="newProductButton" type="button">＋ Новий товар</button>
+      <button id="refreshProductsButton" class="secondary" type="button">↻ Оновити список</button>
+      <span id="productsMessage" class="muted" role="status" aria-live="polite"></span>
+    </div>
 
-<div class="product-toolbar">
-<button id="newProductButton" type="button">＋ Новий товар</button>
-<button id="refreshProductsButton" class="secondary" type="button">Оновити список</button>
-<span id="productsMessage" class="muted" role="status" aria-live="polite"></span>
-</div>
+    <div class="product-layout">
+      <div class="panel">
+        <h3>Товари магазину</h3>
+        <label class="field">Пошук товару
+          <input id="productSearch" type="search" placeholder="Назва або категорія…">
+        </label>
+        <label class="field">Категорія
+          <select id="productCategoryFilter">
+            <option value="all">Усі категорії</option>
+          </select>
+        </label>
+        <label class="field">Відображення
+          <select id="productActiveFilter">
+            <option value="all">Усі товари</option>
+            <option value="active">Активні</option>
+            <option value="hidden">Приховані</option>
+          </select>
+        </label>
+        <p id="productFilterCount" class="muted"></p>
+        <div id="adminProductList" class="product-list">
+          <div class="empty">Завантаження…</div>
+        </div>
+      </div>
 
-<div class="product-layout">
-<div class="panel">
-<h3>Товари магазину</h3>
-<div id="adminProductList" class="product-list">
-<div class="empty">Завантаження…</div>
-</div>
-</div>
+      <div class="panel">
+        <div id="productEditorEmpty" class="empty">Оберіть товар або натисніть «Новий товар».</div>
 
-<div class="panel">
-<div id="productEditorEmpty" class="empty">Оберіть товар або натисніть «Новий товар».</div>
+        <form id="productForm" class="hidden">
+          <h3 id="productFormTitle">Новий товар</h3>
+          <div class="product-form-grid">
+            <label class="field wide">Назва товару
+              <input id="pName" maxlength="160" required>
+            </label>
 
-<form id="productForm" class="hidden">
-<h3 id="productFormTitle">Новий товар</h3>
+            <label class="field">Категорія
+              <select id="pCategory" required>
+                <option>Манґа</option>
+                <option>Фігурки</option>
+                <option>Плюшеві іграшки</option>
+                <option>Одяг</option>
+                <option>Аксесуари</option>
+                <option>Подарунки</option>
+                <option>Інше</option>
+              </select>
+            </label>
 
-<div class="product-form-grid">
-<label class="field wide">Назва товару
-<input id="pName" maxlength="160" required>
-</label>
+            <label class="field">Ціна, ₴
+              <input id="pPrice" type="number" min="1" max="100000000" step="1" required>
+            </label>
 
-<label class="field">Категорія
-<select id="pCategory" required>
-<option>Манґа</option>
-<option>Фігурки</option>
-<option>Плюшеві іграшки</option>
-<option>Одяг</option>
-<option>Аксесуари</option>
-<option>Подарунки</option>
-<option>Інше</option>
-</select>
-</label>
+            <label class="field">Акційна ціна, ₴
+              <input id="pSalePrice" type="number" min="1" max="100000000" step="1" placeholder="Необов'язково">
+            </label>
 
-<label class="field">Ціна, ₴
-<input id="pPrice" type="number" min="1" max="100000000" step="1" required>
-</label>
+            <label class="field">Залишок
+              <input id="pStock" type="number" min="0" max="1000000" step="1" value="0" required>
+            </label>
 
-<label class="field">Акційна ціна, ₴
-<input id="pSalePrice" type="number" min="1" max="100000000" step="1" placeholder="Необов'язково">
-</label>
+            <label class="field wide">Опис
+              <textarea id="pDescription" maxlength="3000" rows="4"></textarea>
+            </label>
+          </div>
 
-<label class="field">Залишок
-<input id="pStock" type="number" min="0" max="1000000" step="1" value="0" required>
-</label>
+          <label class="check-line">
+            <input id="pTrackStock" type="checkbox">
+            Контролювати залишок (зменшувати після замовлення)
+          </label>
+          <label class="check-line">
+            <input id="pActive" type="checkbox" checked>
+            Показувати товар у каталозі
+          </label>
 
-<label class="field wide">Опис
-<textarea id="pDescription" maxlength="3000" rows="3"></textarea>
-</label>
-</div>
+          <div class="actions">
+            <button id="saveProductButton" type="submit">Зберегти товар</button>
+            <button id="deleteProductButton" class="danger hidden" type="button">Видалити товар</button>
+            <button id="cancelProductButton" class="secondary" type="button">Скасувати</button>
+          </div>
+        </form>
 
-<label class="check-line">
-<input id="pTrackStock" type="checkbox">
-Контролювати залишок (зменшувати після замовлення)
-</label>
+        <div id="productImagesPanel" class="hidden">
+          <hr>
+          <h3>📷 Фотографії товару</h3>
+          <p class="muted">Перше фото — головне. Натисніть на фото, щоб збільшити. Переміщуйте фото стрілками.</p>
 
-<label class="check-line">
-<input id="pActive" type="checkbox" checked>
-Показувати товар у каталозі
-</label>
+          <label class="field">Вибрати фотографії
+            <input id="productImageFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
+          </label>
 
-<div class="actions">
-<button id="saveProductButton" type="submit">Зберегти товар</button>
-<button id="cancelProductButton" class="secondary" type="button">Скасувати</button>
-</div>
-</form>
+          <button id="uploadProductImagesButton" type="button">Завантажити фотографії</button>
+          <div id="productImageMessage" class="muted" role="status" aria-live="polite"></div>
+          <div id="productImageGrid" class="image-grid"></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
-<div id="productImagesPanel" class="hidden">
-<hr style="border:0;border-top:1px solid #f0dfe5;margin:22px 0">
-<h3>📷 Фотографії товару</h3>
-<p class="muted">Перше фото відображається в каталозі як головне. Переміщуйте фото стрілками.</p>
+  <!-- ПІДТРИМКА -->
+  <section id="supportTab" class="hidden">
+    <h2>💬 Підтримка покупців</h2>
+    <p class="muted">Повідомлення покупців із Telegram та історія листування.</p>
 
-<label class="field">Вибрати фотографії
-<input id="productImageFiles" type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple>
-</label>
+    <div class="support-layout">
+      <div id="chatList" class="chat-list">
+        <div class="panel empty">Завантаження звернень…</div>
+      </div>
+      <div class="panel chat-window">
+        <div id="chatHeading" class="chat-heading muted">Оберіть звернення зі списку.</div>
+        <div id="messages" class="messages">
+          <div class="empty">Тут відображатиметься листування.</div>
+        </div>
+        <form id="replyForm" class="reply-form hidden">
+          <textarea id="replyText" maxlength="1500" placeholder="Напишіть відповідь покупцю…" required></textarea>
+          <div class="reply-actions">
+            <button id="replyButton" type="submit">Надіслати відповідь</button>
+            <button id="closeChatButton" class="danger" type="button">Закрити звернення</button>
+          </div>
+          <p id="supportMessage" role="status"></p>
+        </form>
+      </div>
+    </div>
+  </section>
 
-<button id="uploadProductImagesButton" type="button">Завантажити фотографії</button>
-<div id="productImageMessage" class="muted" role="status" aria-live="polite"></div>
-<div id="productImageGrid" class="image-grid"></div>
-</div>
-</div>
-</div>
-</section>
-
-<!-- ПІДТРИМКА -->
-<section id="supportTab" class="hidden">
-<h2>💬 Підтримка покупців</h2>
-<p class="muted">Повідомлення покупців із Telegram та історія листування.</p>
-
-<div class="support-layout">
-<div>
-<div id="chatList" class="chat-list">
-<div class="panel empty">Завантаження звернень…</div>
-</div>
-</div>
-
-<div class="panel chat-window">
-<div id="chatHeading" class="chat-heading muted">Оберіть звернення зі списку.</div>
-<div id="messages" class="messages">
-<div class="empty">Тут відображатиметься листування.</div>
-</div>
-
-<form id="replyForm" class="reply-form hidden">
-<textarea id="replyText" maxlength="1500" placeholder="Напишіть відповідь покупцю…" required></textarea>
-<div class="reply-actions">
-<button id="replyButton" type="submit">Надіслати відповідь</button>
-<button id="closeChatButton" class="danger" type="button">Закрити звернення</button>
-</div>
-<p id="supportMessage" role="status"></p>
-</form>
-</div>
-</div>
-</section>
-
-<p id="dashboardError" class="error"></p>
+  <p id="dashboardError" class="error" role="alert"></p>
 </section>
 </main>
+
+<!-- ПОВНОЕКРАННИЙ ПЕРЕГЛЯД ФОТО -->
+<div id="imagePreview" class="preview-overlay" role="dialog" aria-modal="true" aria-label="Перегляд фотографії">
+  <div class="preview-box">
+    <button id="previewClose" class="preview-close" type="button" aria-label="Закрити">×</button>
+    <img id="previewImage" src="" alt="Збільшене фото товару">
+    <div id="previewCaption" class="preview-caption"></div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 
 <script>
 "use strict";
 
-const loginPanel = document.getElementById("loginPanel");
-const dashboard = document.getElementById("dashboard");
-const loginForm = document.getElementById("loginForm");
-const loginButton = document.getElementById("loginButton");
-const loginError = document.getElementById("loginError");
-const ordersBox = document.getElementById("orders");
-const dashboardError = document.getElementById("dashboardError");
+/* -------------------- ОСНОВНІ ЕЛЕМЕНТИ -------------------- */
 
-const chatList = document.getElementById("chatList");
-const messagesBox = document.getElementById("messages");
-const chatHeading = document.getElementById("chatHeading");
-const replyForm = document.getElementById("replyForm");
-const replyText = document.getElementById("replyText");
-const replyButton = document.getElementById("replyButton");
-const closeChatButton = document.getElementById("closeChatButton");
-const supportMessage = document.getElementById("supportMessage");
+const $ = id => document.getElementById(id);
 
-const webhookSetupButton = document.getElementById("webhookSetupButton");
-const webhookSetupMessage = document.getElementById("webhookSetupMessage");
+const loginPanel = $("loginPanel");
+const dashboard = $("dashboard");
+const loginForm = $("loginForm");
+const loginButton = $("loginButton");
+const loginError = $("loginError");
+const ordersBox = $("orders");
+const dashboardError = $("dashboardError");
 
-const orderSearch = document.getElementById("orderSearch");
-const orderStatusFilter = document.getElementById("orderStatusFilter");
-const resetOrderFilters = document.getElementById("resetOrderFilters");
-const orderFilterCount = document.getElementById("orderFilterCount");
+const chatList = $("chatList");
+const messagesBox = $("messages");
+const chatHeading = $("chatHeading");
+const replyForm = $("replyForm");
+const replyText = $("replyText");
+const replyButton = $("replyButton");
+const closeChatButton = $("closeChatButton");
+const supportMessage = $("supportMessage");
+
+const webhookSetupButton = $("webhookSetupButton");
+const webhookSetupMessage = $("webhookSetupMessage");
+
+const orderSearch = $("orderSearch");
+const orderStatusFilter = $("orderStatusFilter");
 
 let selectedChatId = null;
-let selectedChatStatus = null;
 let allOrders = [];
-
-const labels = {
-new: "Нове",
-confirmed: "Підтверджено",
-shipped: "Відправлено",
-completed: "Завершено",
-cancelled: "Скасовано"
-};
-
-const money = n => new Intl.NumberFormat("uk-UA").format(n) + " ₴";
-
-const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
-"&": "&amp;",
-"<": "&lt;",
-">": "&gt;",
-'"': "&quot;",
-"'": "&#39;"
-}[c]));
-
-async function api(path, options = {}) {
-const response = await fetch(path, {
-credentials: "same-origin",
-...options,
-headers: {
-"Content-Type": "application/json",
-...(options.headers || {})
-}
-});
-
-let data = {};
-try {
-data = await response.json();
-} catch {}
-
-if (!response.ok || !data.ok) {
-throw new Error(data.error || "Помилка запиту");
-}
-
-return data;
-}
-
-function showLogin() {
-dashboard.classList.add("hidden");
-loginPanel.classList.remove("hidden");
-}
-
-function showDashboard() {
-loginPanel.classList.add("hidden");
-dashboard.classList.remove("hidden");
-loadOrders();
-}
-
-function showTab(tabId) {
-document.getElementById("ordersTab").classList.toggle("hidden", tabId !== "ordersTab");
-document.getElementById("supportTab").classList.toggle("hidden", tabId !== "supportTab");
-document.getElementById("productsTab").classList.toggle("hidden", tabId !== "productsTab");
-
-document.querySelectorAll(".tab").forEach(button => {
-const active = button.dataset.tab === tabId;
-button.classList.toggle("active", active);
-button.classList.toggle("secondary", !active);
-});
-
-if (tabId === "supportTab") loadSupportChats();
-if (tabId === "productsTab") loadAdminProducts(true);
-}
-
-document.querySelectorAll(".tab").forEach(button => {
-button.addEventListener("click", () => showTab(button.dataset.tab));
-});
-
-/* -------------------- ЗАМОВЛЕННЯ -------------------- */
-
-function renderOrders() {
-const search = orderSearch.value.trim().toLowerCase();
-const status = orderStatusFilter.value;
-
-const filtered = allOrders.filter(o => {
-const searchable = [
-o.order_number,
-o.customer_name,
-o.customer_phone
-];
-
-const matchesSearch = searchable.some(value =>
-String(value || "").toLowerCase().includes(search)
-);
-
-const matchesStatus = status === "all" || o.status === status;
-
-return matchesSearch && matchesStatus;
-});
-
-orderFilterCount.textContent =
-`Показано ${filtered.length} із ${allOrders.length} замовлень`;
-
-if (!filtered.length) {
-ordersBox.innerHTML =
-'<div class="panel empty">За цими параметрами замовлень не знайдено 🦝</div>';
-return;
-}
-
-ordersBox.innerHTML = filtered.map(o => {
-const itemRows = (o.items || []).map(i =>
-"<li>" + esc(i.product_name) + " × " + Number(i.quantity) +
-" — " + money(Number(i.price) * Number(i.quantity)) + "</li>"
-).join("");
-
-const options = Object.entries(labels).map(([value, label]) =>
-'<option value="' + value + '" ' +
-(o.status === value ? "selected" : "") +
-'>' + label + '</option>'
-).join("");
-
-return `
-<article class="order">
-<div class="order-head">
-<div>
-<h3>${esc(o.order_number)}</h3>
-<span class="muted">${esc(o.created_at)}</span>
-</div>
-<strong>${money(Number(o.total_amount))}</strong>
-</div>
-
-<div class="details">
-👤 ${esc(o.customer_name)} · 📞 ${esc(o.customer_phone)}<br>
-📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}
-${o.customer_comment ? "<br>💬 " + esc(o.customer_comment) : ""}
-</div>
-
-<strong>Товари:</strong>
-<ul class="items">${itemRows}</ul>
-
-<div class="actions">
-<label>
-Статус:
-<select data-status-id="${Number(o.id)}">${options}</select>
-</label>
-<button type="button" data-save-id="${Number(o.id)}">
-Зберегти статус
-</button>
-</div>
-</article>
-`;
-}).join("");
-}
-
-async function loadOrders() {
-dashboardError.textContent = "";
-ordersBox.innerHTML = '<div class="panel empty">Завантаження…</div>';
-
-try {
-const data = await api("/api/admin/orders");
-allOrders = data.orders || [];
-
-document.getElementById("orderCount").textContent = allOrders.length;
-
-document.getElementById("newCount").textContent =
-allOrders.filter(o => o.status === "new").length;
-
-document.getElementById("totalAmount").textContent =
-money(allOrders.reduce(
-(sum, o) => sum + Number(o.total_amount || 0), 0
-));
-
-renderOrders();
-} catch (error) {
-if (
-error.message.includes("вхід") ||
-error.message.includes("адміністратора")
-) {
-showLogin();
-return;
-}
-
-dashboardError.textContent = error.message;
-ordersBox.innerHTML =
-'<div class="panel empty">Не вдалося завантажити замовлення.</div>';
-}
-}
-
-/* ПОШУК ТА ФІЛЬТРИ */
-
-orderSearch.addEventListener("input", renderOrders);
-orderStatusFilter.addEventListener("change", renderOrders);
-
-resetOrderFilters.addEventListener("click", () => {
-orderSearch.value = "";
-orderStatusFilter.value = "all";
-renderOrders();
-});
-
-/* ЗБЕРЕЖЕННЯ СТАТУСУ */
-
-ordersBox.addEventListener("click", async event => {
-const button = event.target.closest("[data-save-id]");
-if (!button) return;
-
-const id = button.dataset.saveId;
-const select = ordersBox.querySelector('[data-status-id="' + id + '"]');
-
-if (!select) return;
-
-button.disabled = true;
-button.textContent = "Збереження…";
-
-try {
-await api("/api/admin/orders/" + id + "/status", {
-method: "PATCH",
-body: JSON.stringify({ status: select.value })
-});
-
-await loadOrders();
-} catch (error) {
-dashboardError.textContent = error.message;
-button.disabled = false;
-button.textContent = "Зберегти статус";
-}
-});
-
-/* -------------------- ТОВАРИ ТА ФОТОГРАФІЇ -------------------- */
-
 let adminProducts = [];
 let selectedProductId = null;
 let productImageItems = [];
 
-const adminProductList = document.getElementById("adminProductList");
-const productForm = document.getElementById("productForm");
-const productEditorEmpty = document.getElementById("productEditorEmpty");
-const productImagesPanel = document.getElementById("productImagesPanel");
-const productsMessage = document.getElementById("productsMessage");
-const productImageMessage = document.getElementById("productImageMessage");
-const productImageGrid = document.getElementById("productImageGrid");
-
-function productNotice(message, isError = false) {
-productsMessage.className = isError ? "error" : "success";
-productsMessage.textContent = message || "";
-}
-
-function imageNotice(message, isError = false) {
-productImageMessage.className = isError ? "error" : "muted";
-productImageMessage.textContent = message || "";
-}
-
-function showProductEditor(show) {
-productEditorEmpty.classList.toggle("hidden", show);
-productForm.classList.toggle("hidden", !show);
-productImagesPanel.classList.toggle("hidden", !show || !selectedProductId);
-}
-
-function renderAdminProducts() {
-if (!adminProducts.length) {
-adminProductList.innerHTML = '<div class="empty">Товарів поки немає.</div>';
-return;
-}
-
-adminProductList.innerHTML = adminProducts.map(p => {
-const photo = p.images && p.images[0] && p.images[0].url
-? '<img src="' + esc(p.images[0].url) + '" alt="">'
-: '<span style="font-size:32px">🛍️</span>';
-
-return '<button type="button" class="product-row ' +
-(String(p.id) === String(selectedProductId) ? 'active' : '') +
-'" data-edit-product="' + esc(p.id) + '">' + photo +
-'<span class="product-row-info"><strong>' + esc(p.name) +
-'</strong><small>' + money(Number(p.current_price || p.price)) +
-' · ' + esc(p.category) + '</small><small>' +
-(p.active ? 'Активний' : 'Прихований') + ' · Фото: ' +
-((p.images || []).length) + '/8</small></span></button>';
-}).join("");
-}
-
-async function loadAdminProducts(keepSelection = true) {
-productNotice("Завантаження товарів…");
-
-try {
-const data = await api("/api/admin/products");
-adminProducts = data.products || [];
-
-if (!keepSelection || !adminProducts.some(p => p.id === selectedProductId)) {
-selectedProductId = null;
-}
-
-renderAdminProducts();
-
-if (selectedProductId) {
-const p = adminProducts.find(x => x.id === selectedProductId);
-if (p) fillProductForm(p);
-}
-
-productNotice("Товарів: " + adminProducts.length);
-} catch (error) {
-productNotice(error.message, true);
-adminProductList.innerHTML = '<div class="empty">Не вдалося завантажити товари.</div>';
-}
-}
-
-function fillProductForm(p) {
-selectedProductId = p ? p.id : null;
-
-document.getElementById("productFormTitle").textContent =
-p ? "Редагування товару" : "Новий товар";
-
-document.getElementById("pName").value = p?.name || "";
-document.getElementById("pCategory").value = p?.category || "Аксесуари";
-document.getElementById("pPrice").value = p?.price ?? "";
-document.getElementById("pSalePrice").value = p?.sale_price ?? "";
-document.getElementById("pStock").value = p?.stock ?? 0;
-document.getElementById("pDescription").value = p?.description || "";
-document.getElementById("pTrackStock").checked = Boolean(p?.track_stock);
-document.getElementById("pActive").checked = p ? Boolean(p.active) : true;
-document.getElementById("productImageFiles").value = "";
-
-productImageItems = p?.images ? [...p.images] : [];
-
-showProductEditor(true);
-renderProductImages();
-renderAdminProducts();
-}
-
-function renderProductImages() {
-if (!selectedProductId) {
-productImageGrid.replaceChildren();
-return;
-}
-
-if (!productImageItems.length) {
-productImageGrid.innerHTML =
-'<div class="empty">Фотографій ще немає. Додайте перше фото нижче.</div>';
-return;
-}
-
-productImageGrid.innerHTML = productImageItems.map((img, index) =>
-'<div class="image-card"><img src="' + esc(img.url) +
-'" alt="Фото товару ' + (index + 1) + '" loading="lazy">' +
-'<div class="main-photo">' +
-(index === 0 ? '★ Головне фото' : 'Фото ' + (index + 1)) +
-'</div><div class="image-actions">' +
-'<button type="button" class="secondary" data-image-up="' + index + '"' +
-(index === 0 ? ' disabled' : '') + '>↑</button>' +
-'<button type="button" class="secondary" data-image-down="' + index + '"' +
-(index === productImageItems.length - 1 ? ' disabled' : '') + '>↓</button>' +
-'<button type="button" class="danger" data-image-delete="' +
-Number(img.id) + '">Видалити</button></div></div>'
-).join("");
-}
-
-async function saveImageOrder() {
-const ids = productImageItems.map(img => Number(img.id));
-
-await api(
-"/api/admin/products/" + encodeURIComponent(selectedProductId) + "/images/order",
-{
-method: "PATCH",
-body: JSON.stringify({ ids })
-}
-);
-}
-
-adminProductList.addEventListener("click", event => {
-const button = event.target.closest("[data-edit-product]");
-if (!button) return;
-
-const p = adminProducts.find(item => item.id === button.dataset.editProduct);
-if (p) fillProductForm(p);
-});
-
-document.getElementById("newProductButton").addEventListener("click", () => {
-fillProductForm(null);
-productNotice("Заповніть поля та збережіть новий товар.");
-});
-
-document.getElementById("cancelProductButton").addEventListener("click", () => {
-selectedProductId = null;
-productImageItems = [];
-productForm.reset();
-productForm.classList.add("hidden");
-productImagesPanel.classList.add("hidden");
-productEditorEmpty.classList.remove("hidden");
-renderAdminProducts();
-});
-
-productForm.addEventListener("submit", async event => {
-event.preventDefault();
-
-const button = document.getElementById("saveProductButton");
-const price = Number(document.getElementById("pPrice").value);
-const saleValue = document.getElementById("pSalePrice").value.trim();
-
-const payload = {
-name: document.getElementById("pName").value.trim(),
-category: document.getElementById("pCategory").value,
-price,
-sale_price: saleValue === "" ? null : Number(saleValue),
-stock: Number(document.getElementById("pStock").value),
-description: document.getElementById("pDescription").value.trim(),
-track_stock: document.getElementById("pTrackStock").checked,
-active: document.getElementById("pActive").checked
+const labels = {
+  new:"Нове",
+  confirmed:"Підтверджено",
+  shipped:"Відправлено",
+  completed:"Завершено",
+  cancelled:"Скасовано"
 };
 
-if (
-!payload.name ||
-!Number.isSafeInteger(price) ||
-price < 1 ||
-!Number.isSafeInteger(payload.stock) ||
-payload.stock < 0 ||
-(payload.sale_price !== null &&
-(!Number.isSafeInteger(payload.sale_price) ||
-payload.sale_price < 1 ||
-payload.sale_price >= price))
-) {
-productNotice("Перевірте назву, ціну, акційну ціну та залишок.", true);
-return;
+const money = n => new Intl.NumberFormat("uk-UA").format(Number(n)||0)+" ₴";
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g,c=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+}[c]));
+
+let toastTimer;
+function toast(message){
+  $("toast").textContent=message;
+  $("toast").classList.add("visible");
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>$("toast").classList.remove("visible"),2600);
 }
 
-button.disabled = true;
-button.textContent = "Збереження…";
+async function api(path,options={}){
+  const response=await fetch(path,{
+    credentials:"same-origin",
+    ...options,
+    headers:{
+      ...(options.headers||{}),
+      ...(options.body instanceof FormData?{}:{"Content-Type":"application/json"})
+    }
+  });
 
-try {
-const isEdit = Boolean(selectedProductId);
+  let data={};
+  try{data=await response.json()}catch{}
 
-const path = isEdit
-? "/api/admin/products/" + encodeURIComponent(selectedProductId)
-: "/api/admin/products";
+  if(!response.ok||!data.ok){
+    throw new Error(data.error||"Помилка запиту");
+  }
+  return data;
+}
 
-const data = await api(path, {
-method: isEdit ? "PATCH" : "POST",
-body: JSON.stringify(payload)
+function showLogin(){
+  dashboard.classList.add("hidden");
+  loginPanel.classList.remove("hidden");
+}
+
+function showDashboard(){
+  loginPanel.classList.add("hidden");
+  dashboard.classList.remove("hidden");
+  loadOrders();
+}
+
+function showTab(tabId){
+  ["ordersTab","supportTab","productsTab"].forEach(id=>{
+    $(id).classList.toggle("hidden",id!==tabId);
+  });
+
+  document.querySelectorAll(".tab").forEach(button=>{
+    const active=button.dataset.tab===tabId;
+    button.classList.toggle("active",active);
+    button.classList.toggle("secondary",!active);
+  });
+
+  if(tabId==="supportTab")loadSupportChats();
+  if(tabId==="productsTab")loadAdminProducts(true);
+}
+
+document.querySelectorAll(".tab").forEach(button=>{
+  button.addEventListener("click",()=>showTab(button.dataset.tab));
 });
 
-selectedProductId = data.product.id;
+/* -------------------- ЗАМОВЛЕННЯ -------------------- */
 
-await loadAdminProducts(true);
-productNotice(data.message || "Товар збережено.");
-} catch (error) {
-productNotice(error.message, true);
-} finally {
-button.disabled = false;
-button.textContent = "Зберегти товар";
+function renderOrders(){
+  const search=orderSearch.value.trim().toLowerCase();
+  const status=orderStatusFilter.value;
+
+  const filtered=allOrders.filter(o=>{
+    const searchable=[o.order_number,o.customer_name,o.customer_phone];
+    const matchesSearch=searchable.some(v=>String(v||"").toLowerCase().includes(search));
+    return matchesSearch&&(status==="all"||o.status===status);
+  });
+
+  $("orderFilterCount").textContent=`Показано ${filtered.length} із ${allOrders.length} замовлень`;
+
+  if(!filtered.length){
+    ordersBox.innerHTML='<div class="panel empty">Замовлень за цими параметрами не знайдено 🦝</div>';
+    return;
+  }
+
+  ordersBox.innerHTML=filtered.map(o=>{
+    const itemRows=(o.items||[]).map(i=>
+      "<li>"+esc(i.product_name)+" × "+Number(i.quantity)+" — "+
+      money(Number(i.price)*Number(i.quantity))+"</li>"
+    ).join("");
+
+    const options=Object.entries(labels).map(([value,label])=>
+      '<option value="'+value+'" '+(o.status===value?"selected":"")+'>'+label+'</option>'
+    ).join("");
+
+    return `
+      <article class="order">
+        <div class="order-head">
+          <div>
+            <h3>${esc(o.order_number)}</h3>
+            <span class="muted">${esc(o.created_at)}</span>
+          </div>
+          <strong>${money(o.total_amount)}</strong>
+        </div>
+        <div class="details">
+          👤 ${esc(o.customer_name)} · 📞 ${esc(o.customer_phone)}<br>
+          📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}
+          ${o.customer_comment?"<br>💬 "+esc(o.customer_comment):""}
+        </div>
+        <strong>Товари:</strong>
+        <ul class="items">${itemRows}</ul>
+        <div class="actions">
+          <label>Статус:
+            <select data-status-id="${Number(o.id)}">${options}</select>
+          </label>
+          <button type="button" data-save-id="${Number(o.id)}">Зберегти статус</button>
+        </div>
+      </article>
+    `;
+  }).join("");
 }
+
+async function loadOrders(){
+  dashboardError.textContent="";
+  ordersBox.innerHTML='<div class="panel empty">Завантаження…</div>';
+
+  try{
+    const data=await api("/api/admin/orders");
+    allOrders=data.orders||[];
+
+    $("orderCount").textContent=allOrders.length;
+    $("newCount").textContent=allOrders.filter(o=>o.status==="new").length;
+    $("totalAmount").textContent=money(allOrders.reduce((sum,o)=>sum+Number(o.total_amount||0),0));
+
+    renderOrders();
+  }catch(error){
+    dashboardError.textContent=error.message;
+    ordersBox.innerHTML='<div class="panel empty">Не вдалося завантажити замовлення.</div>';
+    if(error.message.includes("адміністратора"))showLogin();
+  }
+}
+
+orderSearch.addEventListener("input",renderOrders);
+orderStatusFilter.addEventListener("change",renderOrders);
+
+$("resetOrderFilters").addEventListener("click",()=>{
+  orderSearch.value="";
+  orderStatusFilter.value="all";
+  renderOrders();
 });
 
-document.getElementById("uploadProductImagesButton").addEventListener("click", async () => {
-if (!selectedProductId) return;
+ordersBox.addEventListener("click",async event=>{
+  const button=event.target.closest("[data-save-id]");
+  if(!button)return;
 
-const input = document.getElementById("productImageFiles");
-const files = [...(input.files || [])];
+  const id=button.dataset.saveId;
+  const select=ordersBox.querySelector('[data-status-id="'+id+'"]');
+  if(!select)return;
 
-if (!files.length) {
-imageNotice("Спочатку виберіть фотографії.", true);
-return;
-}
+  button.disabled=true;
+  button.textContent="Збереження…";
 
-if (productImageItems.length + files.length > 8) {
-imageNotice("Можна мати не більше 8 фотографій на товар.", true);
-return;
-}
-
-for (const file of files) {
-if (
-!["image/jpeg", "image/png", "image/webp", "image/gif"].includes(file.type) ||
-file.size > 8 * 1024 * 1024
-) {
-imageNotice("Дозволені JPG, PNG, WEBP або GIF до 8 МБ кожен.", true);
-return;
-}
-}
-
-const button = document.getElementById("uploadProductImagesButton");
-const form = new FormData();
-
-files.forEach(file => form.append("images", file));
-
-button.disabled = true;
-button.textContent = "Завантаження…";
-imageNotice("Завантажуємо фотографії…");
-
-try {
-const response = await fetch(
-"/api/admin/products/" + encodeURIComponent(selectedProductId) + "/images",
-{
-method: "POST",
-credentials: "same-origin",
-body: form
-}
-);
-
-const data = await response.json().catch(() => ({}));
-
-if (!response.ok || !data.ok) {
-throw new Error(data.error || "Не вдалося завантажити фотографії.");
-}
-
-input.value = "";
-
-await loadAdminProducts(true);
-imageNotice("Завантажено фотографій: " + (data.images || []).length);
-} catch (error) {
-imageNotice(error.message, true);
-} finally {
-button.disabled = false;
-button.textContent = "Завантажити фотографії";
-}
+  try{
+    await api("/api/admin/orders/"+id+"/status",{
+      method:"PATCH",
+      body:JSON.stringify({status:select.value})
+    });
+    toast("Статус замовлення оновлено.");
+    await loadOrders();
+  }catch(error){
+    dashboardError.textContent=error.message;
+    button.disabled=false;
+    button.textContent="Зберегти статус";
+  }
 });
 
-productImageGrid.addEventListener("click", async event => {
-const del = event.target.closest("[data-image-delete]");
-const up = event.target.closest("[data-image-up]");
-const down = event.target.closest("[data-image-down]");
+/* -------------------- ТОВАРИ -------------------- */
 
-try {
-if (del) {
-if (!confirm("Видалити цю фотографію?")) return;
+const adminProductList=$("adminProductList");
+const productForm=$("productForm");
+const productEditorEmpty=$("productEditorEmpty");
+const productImagesPanel=$("productImagesPanel");
+const productsMessage=$("productsMessage");
+const productImageMessage=$("productImageMessage");
+const productImageGrid=$("productImageGrid");
 
-await api(
-"/api/admin/products/" + encodeURIComponent(selectedProductId) +
-"/images/" + del.dataset.imageDelete,
-{ method: "DELETE" }
-);
-
-await loadAdminProducts(true);
-imageNotice("Фотографію видалено.");
-return;
+function productNotice(message,isError=false){
+  productsMessage.className=isError?"error":"success";
+  productsMessage.textContent=message||"";
 }
 
-if (up || down) {
-const index = Number((up || down).dataset[up ? "imageUp" : "imageDown"]);
-const target = up ? index - 1 : index + 1;
-
-if (target < 0 || target >= productImageItems.length) return;
-
-[productImageItems[index], productImageItems[target]] =
-[productImageItems[target], productImageItems[index]];
-
-await saveImageOrder();
-await loadAdminProducts(true);
-
-imageNotice("Порядок фотографій збережено. Перше фото — головне.");
+function imageNotice(message,isError=false){
+  productImageMessage.className=isError?"error":"muted";
+  productImageMessage.textContent=message||"";
 }
-} catch (error) {
-imageNotice(error.message, true);
-await loadAdminProducts(true);
+
+function showProductEditor(show){
+  productEditorEmpty.classList.toggle("hidden",show);
+  productForm.classList.toggle("hidden",!show);
+  productImagesPanel.classList.toggle("hidden",!show||!selectedProductId);
+  $("deleteProductButton").classList.toggle("hidden",!selectedProductId);
 }
+
+function renderProductFilters(){
+  const select=$("productCategoryFilter");
+  const current=select.value;
+  const categories=[...new Set(adminProducts.map(p=>p.category).filter(Boolean))].sort();
+
+  select.innerHTML='<option value="all">Усі категорії</option>'+
+    categories.map(c=>'<option value="'+esc(c)+'">'+esc(c)+'</option>').join("");
+
+  if(categories.includes(current))select.value=current;
+}
+
+function renderAdminProducts(){
+  const search=$("productSearch").value.trim().toLowerCase();
+  const category=$("productCategoryFilter").value;
+  const active=$("productActiveFilter").value;
+
+  const filtered=adminProducts.filter(p=>{
+    const matchesSearch=(String(p.name||"")+" "+String(p.category||"")).toLowerCase().includes(search);
+    const matchesCategory=category==="all"||p.category===category;
+    const matchesActive=active==="all"||(active==="active"?Boolean(p.active):!p.active);
+    return matchesSearch&&matchesCategory&&matchesActive;
+  });
+
+  $("productFilterCount").textContent=`Показано ${filtered.length} із ${adminProducts.length} товарів`;
+
+  if(!filtered.length){
+    adminProductList.innerHTML='<div class="empty">Товарів не знайдено.</div>';
+    return;
+  }
+
+  adminProductList.innerHTML=filtered.map(p=>{
+    const photo=p.images?.[0]?.url
+      ?'<img src="'+esc(p.images[0].url)+'" alt="" loading="lazy">'
+      :'<span style="font-size:32px">🛍️</span>';
+
+    return `
+      <button type="button"
+        class="product-row ${String(p.id)===String(selectedProductId)?"active":""}"
+        data-edit-product="${esc(p.id)}">
+        ${photo}
+        <span class="product-row-info">
+          <strong>${esc(p.name)}</strong>
+          <small>${money(p.current_price??p.price)} · ${esc(p.category)}</small>
+          <span class="product-badges">
+            <span class="pill ${p.active?"green":"gray"}">${p.active?"Активний":"Прихований"}</span>
+            <span class="pill">Фото: ${(p.images||[]).length}/8</span>
+          </span>
+        </span>
+      </button>
+    `;
+  }).join("");
+}
+
+async function loadAdminProducts(keepSelection=true){
+  productNotice("Завантаження товарів…");
+
+  try{
+    const data=await api("/api/admin/products");
+    adminProducts=data.products||[];
+
+    if(!keepSelection||!adminProducts.some(p=>String(p.id)===String(selectedProductId))){
+      selectedProductId=null;
+    }
+
+    renderProductFilters();
+    renderAdminProducts();
+
+    if(selectedProductId){
+      const p=adminProducts.find(x=>String(x.id)===String(selectedProductId));
+      if(p)fillProductForm(p);
+    }
+
+    productNotice("Товарів: "+adminProducts.length);
+  }catch(error){
+    productNotice(error.message,true);
+    adminProductList.innerHTML='<div class="empty">Не вдалося завантажити товари.</div>';
+  }
+}
+
+function fillProductForm(p){
+  selectedProductId=p?p.id:null;
+
+  $("productFormTitle").textContent=p?"Редагування товару":"Новий товар";
+  $("pName").value=p?.name||"";
+  $("pCategory").value=p?.category||"Аксесуари";
+  $("pPrice").value=p?.price??"";
+  $("pSalePrice").value=p?.sale_price??"";
+  $("pStock").value=p?.stock??0;
+  $("pDescription").value=p?.description||"";
+  $("pTrackStock").checked=Boolean(p?.track_stock);
+  $("pActive").checked=p?Boolean(p.active):true;
+  $("productImageFiles").value="";
+
+  productImageItems=p?.images?[...p.images]:[];
+  showProductEditor(true);
+  renderProductImages();
+  renderAdminProducts();
+}
+
+function renderProductImages(){
+  if(!selectedProductId){
+    productImageGrid.replaceChildren();
+    return;
+  }
+
+  if(!productImageItems.length){
+    productImageGrid.innerHTML='<div class="empty">Фотографій ще немає. Додайте перше фото.</div>';
+    return;
+  }
+
+  productImageGrid.innerHTML=productImageItems.map((img,index)=>`
+    <div class="image-card">
+      <img class="image-preview"
+        src="${esc(img.url)}"
+        alt="Фото товару ${index+1}"
+        loading="lazy"
+        data-preview-image="${index}">
+      <div class="main-photo">${index===0?"★ Головне фото":"Фото "+(index+1)}</div>
+      <div class="image-actions">
+        <button type="button" class="secondary" data-image-up="${index}" ${index===0?"disabled":""}>↑</button>
+        <button type="button" class="secondary" data-image-down="${index}" ${index===productImageItems.length-1?"disabled":""}>↓</button>
+        <button type="button" class="danger" data-image-delete="${Number(img.id)}">Видалити</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+adminProductList.addEventListener("click",event=>{
+  const button=event.target.closest("[data-edit-product]");
+  if(!button)return;
+  const p=adminProducts.find(item=>String(item.id)===button.dataset.editProduct);
+  if(p)fillProductForm(p);
 });
 
-document.getElementById("refreshProductsButton").addEventListener("click", () => {
-loadAdminProducts(true);
+$("productSearch").addEventListener("input",renderAdminProducts);
+$("productCategoryFilter").addEventListener("change",renderAdminProducts);
+$("productActiveFilter").addEventListener("change",renderAdminProducts);
+
+$("newProductButton").addEventListener("click",()=>{
+  fillProductForm(null);
+  productNotice("Заповніть поля та збережіть новий товар.");
+});
+
+$("cancelProductButton").addEventListener("click",()=>{
+  selectedProductId=null;
+  productImageItems=[];
+  productForm.reset();
+  productForm.classList.add("hidden");
+  productImagesPanel.classList.add("hidden");
+  productEditorEmpty.classList.remove("hidden");
+  renderAdminProducts();
+});
+
+productForm.addEventListener("submit",async event=>{
+  event.preventDefault();
+
+  const button=$("saveProductButton");
+  const price=Number($("pPrice").value);
+  const saleValue=$("pSalePrice").value.trim();
+
+  const payload={
+    name:$("pName").value.trim(),
+    category:$("pCategory").value,
+    price,
+    sale_price:saleValue===""?null:Number(saleValue),
+    stock:Number($("pStock").value),
+    description:$("pDescription").value.trim(),
+    track_stock:$("pTrackStock").checked,
+    active:$("pActive").checked
+  };
+
+  if(
+    !payload.name||
+    !Number.isSafeInteger(price)||price<1||
+    !Number.isSafeInteger(payload.stock)||payload.stock<0||
+    (payload.sale_price!==null&&
+      (!Number.isSafeInteger(payload.sale_price)||payload.sale_price<1||payload.sale_price>=price))
+  ){
+    productNotice("Перевірте назву, ціну, акційну ціну та залишок.",true);
+    return;
+  }
+
+  button.disabled=true;
+  button.textContent="Збереження…";
+
+  try{
+    const isEdit=Boolean(selectedProductId);
+    const path=isEdit
+      ?"/api/admin/products/"+encodeURIComponent(selectedProductId)
+      :"/api/admin/products";
+
+    const data=await api(path,{
+      method:isEdit?"PATCH":"POST",
+      body:JSON.stringify(payload)
+    });
+
+    selectedProductId=data.product.id;
+    await loadAdminProducts(true);
+    productNotice(data.message||"Товар збережено.");
+    toast("Товар успішно збережено.");
+  }catch(error){
+    productNotice(error.message,true);
+  }finally{
+    button.disabled=false;
+    button.textContent="Зберегти товар";
+  }
+});
+
+/* Видалення товару — серверний API DELETE */
+$("deleteProductButton").addEventListener("click",async()=>{
+  if(!selectedProductId)return;
+
+  const p=adminProducts.find(x=>String(x.id)===String(selectedProductId));
+  const name=p?.name||"цей товар";
+
+  if(!confirm(`Видалити товар «${name}»? Цю дію не можна скасувати.`))return;
+
+  const button=$("deleteProductButton");
+  button.disabled=true;
+  button.textContent="Видалення…";
+
+  try{
+    await api("/api/admin/products/"+encodeURIComponent(selectedProductId),{
+      method:"DELETE"
+    });
+
+    selectedProductId=null;
+    productImageItems=[];
+    productForm.reset();
+    productForm.classList.add("hidden");
+    productImagesPanel.classList.add("hidden");
+    productEditorEmpty.classList.remove("hidden");
+
+    await loadAdminProducts(false);
+    productNotice("Товар видалено.");
+    toast("Товар видалено.");
+  }catch(error){
+    productNotice(error.message,true);
+  }finally{
+    button.disabled=false;
+    button.textContent="Видалити товар";
+  }
+});
+
+/* Завантаження фотографій */
+$("uploadProductImagesButton").addEventListener("click",async()=>{
+  if(!selectedProductId)return;
+
+  const input=$("productImageFiles");
+  const files=[...(input.files||[])];
+
+  if(!files.length){
+    imageNotice("Спочатку виберіть фотографії.",true);
+    return;
+  }
+
+  if(productImageItems.length+files.length>8){
+    imageNotice("Можна мати не більше 8 фотографій на товар.",true);
+    return;
+  }
+
+  for(const file of files){
+    if(
+      !["image/jpeg","image/png","image/webp","image/gif"].includes(file.type)||
+      file.size>8*1024*1024
+    ){
+      imageNotice("Дозволені JPG, PNG, WEBP або GIF до 8 МБ кожен.",true);
+      return;
+    }
+  }
+
+  const button=$("uploadProductImagesButton");
+  const form=new FormData();
+  files.forEach(file=>form.append("images",file));
+
+  button.disabled=true;
+  button.textContent="Завантаження…";
+  imageNotice("Завантажуємо фотографії…");
+
+  try{
+    const response=await fetch(
+      "/api/admin/products/"+encodeURIComponent(selectedProductId)+"/images",
+      {method:"POST",credentials:"same-origin",body:form}
+    );
+
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok||!data.ok)throw new Error(data.error||"Не вдалося завантажити фотографії.");
+
+    input.value="";
+    await loadAdminProducts(true);
+    imageNotice("Завантажено фотографій: "+(data.images||[]).length);
+    toast("Фотографії завантажено.");
+  }catch(error){
+    imageNotice(error.message,true);
+  }finally{
+    button.disabled=false;
+    button.textContent="Завантажити фотографії";
+  }
+});
+
+async function saveImageOrder(){
+  const ids=productImageItems.map(img=>Number(img.id));
+  await api("/api/admin/products/"+encodeURIComponent(selectedProductId)+"/images/order",{
+    method:"PATCH",
+    body:JSON.stringify({ids})
+  });
+}
+
+productImageGrid.addEventListener("click",async event=>{
+  const preview=event.target.closest("[data-preview-image]");
+  const del=event.target.closest("[data-image-delete]");
+  const up=event.target.closest("[data-image-up]");
+  const down=event.target.closest("[data-image-down]");
+
+  if(preview){
+    const index=Number(preview.dataset.previewImage);
+    const img=productImageItems[index];
+    if(img)openImagePreview(img.url,"Фото "+(index+1));
+    return;
+  }
+
+  try{
+    if(del){
+      if(!confirm("Видалити цю фотографію?"))return;
+
+      await api(
+        "/api/admin/products/"+encodeURIComponent(selectedProductId)+"/images/"+del.dataset.imageDelete,
+        {method:"DELETE"}
+      );
+
+      await loadAdminProducts(true);
+      imageNotice("Фотографію видалено.");
+      toast("Фотографію видалено.");
+      return;
+    }
+
+    if(up||down){
+      const index=Number((up||down).dataset[up?"imageUp":"imageDown"]);
+      const target=up?index-1:index+1;
+      if(target<0||target>=productImageItems.length)return;
+
+      [productImageItems[index],productImageItems[target]]=
+      [productImageItems[target],productImageItems[index]];
+
+      await saveImageOrder();
+      await loadAdminProducts(true);
+      imageNotice("Порядок фотографій збережено. Перше фото — головне.");
+      toast("Порядок фото оновлено.");
+    }
+  }catch(error){
+    imageNotice(error.message,true);
+    await loadAdminProducts(true);
+  }
+});
+
+$("refreshProductsButton").addEventListener("click",()=>loadAdminProducts(true));
+
+/* -------------------- ПЕРЕГЛЯД ФОТО -------------------- */
+
+function openImagePreview(url,caption){
+  $("previewImage").src=url;
+  $("previewCaption").textContent=caption||"";
+  $("imagePreview").classList.add("active");
+  $("previewClose").focus();
+}
+
+function closeImagePreview(){
+  $("imagePreview").classList.remove("active");
+  $("previewImage").src="";
+}
+
+$("previewClose").addEventListener("click",closeImagePreview);
+$("imagePreview").addEventListener("click",event=>{
+  if(event.target===$("imagePreview"))closeImagePreview();
+});
+document.addEventListener("keydown",event=>{
+  if(event.key==="Escape")closeImagePreview();
 });
 
 /* -------------------- ПІДТРИМКА -------------------- */
 
-async function loadSupportChats() {
-try {
-const data = await api("/api/admin/support");
-const chats = data.chats || [];
+async function loadSupportChats(){
+  try{
+    const data=await api("/api/admin/support");
+    const chats=data.chats||[];
 
-if (!chats.length) {
-chatList.innerHTML =
-'<div class="panel empty">Звернень поки немає 🦝</div>';
-return;
+    if(!chats.length){
+      chatList.innerHTML='<div class="panel empty">Звернень поки немає 🦝</div>';
+      return;
+    }
+
+    chatList.innerHTML=chats.map(chat=>{
+      const active=Number(chat.id)===Number(selectedChatId);
+      const unread=Number(chat.unread_count||0);
+      const waiting=chat.status==="open"&&chat.last_sender==="buyer";
+      const status=chat.status==="closed"?"Закрите":(waiting?"Очікує відповіді":"Відкрите");
+      const statusClass=chat.status==="closed"?"closed":(waiting?"waiting":"");
+
+      return `
+        <button type="button" class="chat-card ${active?"active":""}" data-chat-id="${Number(chat.id)}">
+          <strong>
+            ${esc(chat.customer_name||"Покупець")}
+            ${unread?'<span class="unread-badge">'+unread+' нов.</span>':""}
+          </strong>
+          <span class="chat-status ${statusClass}">${status} · №${Number(chat.id)}</span>
+          <div class="chat-preview">${esc(chat.last_message||"Немає повідомлень")}</div>
+          <small class="muted">${esc(chat.updated_at||"")}</small>
+        </button>
+      `;
+    }).join("");
+  }catch(error){
+    chatList.innerHTML='<div class="panel empty">Не вдалося завантажити звернення.</div>';
+    dashboardError.textContent=error.message;
+  }
 }
 
-chatList.innerHTML = chats.map(chat => {
-const active = Number(chat.id) === Number(selectedChatId);
-const unread = Number(chat.unread_count || 0);
-const waiting = chat.status === "open" && chat.last_sender === "buyer";
+async function openSupportChat(chatId){
+  selectedChatId=Number(chatId);
+  supportMessage.textContent="";
+  messagesBox.innerHTML='<div class="empty">Завантаження листування…</div>';
 
-const status = chat.status === "closed"
-? "Закрите"
-: (waiting ? "Очікує відповіді" : "Відкрите");
+  try{
+    const data=await api("/api/admin/support/"+selectedChatId);
+    const chat=data.chat;
+    const messages=data.messages||[];
 
-const statusClass = chat.status === "closed"
-? "closed"
-: (waiting ? "waiting" : "");
+    const lastMessage=messages.length?messages[messages.length-1]:null;
+    const waiting=chat.status==="open"&&lastMessage?.sender==="buyer";
+    const statusText=chat.status==="closed"?"Закрите звернення":(waiting?"Очікує відповіді":"Відкрите звернення");
+    const statusClass=chat.status==="closed"?"closed":(waiting?"waiting":"");
 
-return `
-<button type="button"
-class="chat-card ${active ? "active" : ""}"
-data-chat-id="${Number(chat.id)}">
-<strong>
-${esc(chat.customer_name || "Покупець")}
-${unread ? `<span class="unread-badge">${unread} нов.</span>` : ""}
-</strong>
-<span class="chat-status ${statusClass}">
-${status} · №${Number(chat.id)}
-</span>
-<div class="chat-preview">${esc(chat.last_message || "Немає повідомлень")}</div>
-<small class="muted">${esc(chat.updated_at || "")}</small>
-</button>
-`;
-}).join("");
-} catch (error) {
-chatList.innerHTML =
-'<div class="panel empty">Не вдалося завантажити звернення.</div>';
-dashboardError.textContent = error.message;
-}
-}
+    chatHeading.innerHTML=`
+      <strong>${esc(chat.customer_name||"Покупець")}</strong><br>
+      <span class="muted">Telegram ID: ${esc(chat.telegram_id)} · Звернення №${Number(chat.id)}</span><br>
+      <span class="chat-status ${statusClass}">${statusText}</span>
+    `;
 
-async function openSupportChat(chatId) {
-selectedChatId = Number(chatId);
-supportMessage.textContent = "";
-messagesBox.innerHTML = '<div class="empty">Завантаження листування…</div>';
+    if(!messages.length){
+      messagesBox.innerHTML='<div class="empty">Повідомлень поки немає.</div>';
+    }else{
+      messagesBox.innerHTML=messages.map(message=>{
+        const sender=message.sender==="admin"?"admin":"buyer";
+        const senderLabel=sender==="admin"?"Підтримка":"Покупець";
+        return `
+          <div class="message ${sender}">
+            <strong>${senderLabel}</strong>
+            <div>${esc(message.message_text)}</div>
+            <small>${esc(message.created_at)}</small>
+          </div>
+        `;
+      }).join("");
+    }
 
-try {
-const data = await api("/api/admin/support/" + selectedChatId);
-const chat = data.chat;
-const messages = data.messages || [];
-
-selectedChatStatus = chat.status;
-
-const lastMessage = messages.length
-? messages[messages.length - 1]
-: null;
-
-const waiting = chat.status === "open" &&
-lastMessage?.sender === "buyer";
-
-const statusText = chat.status === "closed"
-? "Закрите звернення"
-: (waiting ? "Очікує відповіді" : "Відкрите звернення");
-
-const statusClass = chat.status === "closed"
-? "closed"
-: (waiting ? "waiting" : "");
-
-chatHeading.innerHTML = `
-<strong>${esc(chat.customer_name || "Покупець")}</strong><br>
-<span class="muted">Telegram ID: ${esc(chat.telegram_id)} · Звернення №${Number(chat.id)}</span><br>
-<span class="chat-status ${statusClass}">
-${statusText}
-</span>
-`;
-
-if (!messages.length) {
-messagesBox.innerHTML = '<div class="empty">Повідомлень поки немає.</div>';
-} else {
-messagesBox.innerHTML = messages.map(message => {
-const sender = message.sender === "admin" ? "admin" : "buyer";
-const senderLabel = sender === "admin" ? "Підтримка" : "Покупець";
-
-return `
-<div class="message ${sender}">
-<strong>${senderLabel}</strong>
-<div>${esc(message.message_text)}</div>
-<small>${esc(message.created_at)}</small>
-</div>
-`;
-}).join("");
+    replyForm.classList.toggle("hidden",chat.status!=="open");
+    replyText.value="";
+    messagesBox.scrollTop=messagesBox.scrollHeight;
+    await loadSupportChats();
+  }catch(error){
+    messagesBox.innerHTML='<div class="empty">Не вдалося завантажити листування.</div>';
+    supportMessage.textContent=error.message;
+  }
 }
 
-replyForm.classList.toggle("hidden", chat.status !== "open");
-replyText.value = "";
-messagesBox.scrollTop = messagesBox.scrollHeight;
-
-await loadSupportChats();
-} catch (error) {
-messagesBox.innerHTML =
-'<div class="empty">Не вдалося завантажити листування.</div>';
-supportMessage.textContent = error.message;
-}
-}
-
-chatList.addEventListener("click", event => {
-const button = event.target.closest("[data-chat-id]");
-if (!button) return;
-
-openSupportChat(button.dataset.chatId);
+chatList.addEventListener("click",event=>{
+  const button=event.target.closest("[data-chat-id]");
+  if(button)openSupportChat(button.dataset.chatId);
 });
 
-replyForm.addEventListener("submit", async event => {
-event.preventDefault();
+replyForm.addEventListener("submit",async event=>{
+  event.preventDefault();
+  if(!selectedChatId)return;
 
-if (!selectedChatId) return;
+  const message=replyText.value.trim();
+  if(!message)return;
 
-const message = replyText.value.trim();
-if (!message) return;
+  replyButton.disabled=true;
+  replyButton.textContent="Надсилання…";
+  supportMessage.textContent="";
 
-replyButton.disabled = true;
-replyButton.textContent = "Надсилання…";
-supportMessage.textContent = "";
+  try{
+    await api("/api/admin/support/"+selectedChatId+"/reply",{
+      method:"POST",
+      body:JSON.stringify({message})
+    });
 
-try {
-await api("/api/admin/support/" + selectedChatId + "/reply", {
-method: "POST",
-body: JSON.stringify({ message })
+    replyText.value="";
+    supportMessage.className="success";
+    supportMessage.textContent="Відповідь надіслана покупцеві.";
+    await openSupportChat(selectedChatId);
+  }catch(error){
+    supportMessage.className="error";
+    supportMessage.textContent=error.message;
+  }finally{
+    replyButton.disabled=false;
+    replyButton.textContent="Надіслати відповідь";
+  }
 });
 
-replyText.value = "";
-supportMessage.className = "success";
-supportMessage.textContent = "Відповідь надіслана покупцеві.";
+closeChatButton.addEventListener("click",async()=>{
+  if(!selectedChatId)return;
+  if(!confirm("Закрити це звернення?"))return;
 
-await openSupportChat(selectedChatId);
-} catch (error) {
-supportMessage.className = "error";
-supportMessage.textContent = error.message;
-} finally {
-replyButton.disabled = false;
-replyButton.textContent = "Надіслати відповідь";
-}
-});
+  closeChatButton.disabled=true;
 
-closeChatButton.addEventListener("click", async () => {
-if (!selectedChatId) return;
+  try{
+    await api("/api/admin/support/"+selectedChatId+"/close",{
+      method:"PATCH",
+      body:"{}"
+    });
 
-if (!confirm("Закрити це звернення?")) return;
-
-closeChatButton.disabled = true;
-
-try {
-await api("/api/admin/support/" + selectedChatId + "/close", {
-method: "PATCH",
-body: "{}"
-});
-
-await openSupportChat(selectedChatId);
-await loadSupportChats();
-
-supportMessage.className = "success";
-supportMessage.textContent = "Звернення закрито.";
-} catch (error) {
-supportMessage.className = "error";
-supportMessage.textContent = error.message;
-} finally {
-closeChatButton.disabled = false;
-}
+    await openSupportChat(selectedChatId);
+    await loadSupportChats();
+    supportMessage.className="success";
+    supportMessage.textContent="Звернення закрито.";
+  }catch(error){
+    supportMessage.className="error";
+    supportMessage.textContent=error.message;
+  }finally{
+    closeChatButton.disabled=false;
+  }
 });
 
 /* -------------------- TELEGRAM WEBHOOK -------------------- */
 
-webhookSetupButton.addEventListener("click", async () => {
-if (!confirm(
-"Налаштувати Telegram Webhook для Tanuki Shop? Це зареєструє адресу магазину в Telegram."
-)) {
-return;
-}
+webhookSetupButton.addEventListener("click",async()=>{
+  if(!confirm("Налаштувати Telegram Webhook для Tanuki Shop?"))return;
 
-webhookSetupButton.disabled = true;
-webhookSetupButton.textContent = "Налаштування…";
-webhookSetupMessage.className = "muted";
-webhookSetupMessage.textContent = "Звертаємося до Telegram…";
+  webhookSetupButton.disabled=true;
+  webhookSetupButton.textContent="Налаштування…";
+  webhookSetupMessage.className="muted";
+  webhookSetupMessage.textContent="Звертаємося до Telegram…";
 
-try {
-const data = await api("/api/admin/telegram/webhook/setup", {
-method: "POST",
-body: "{}"
-});
-
-webhookSetupMessage.className = "success";
-webhookSetupMessage.textContent =
-data.message || "Telegram Webhook успішно налаштовано.";
-} catch (error) {
-webhookSetupMessage.className = "error";
-webhookSetupMessage.textContent =
-error.message || "Не вдалося налаштувати Telegram Webhook.";
-} finally {
-webhookSetupButton.disabled = false;
-webhookSetupButton.textContent = "Налаштувати Telegram Webhook";
-}
+  try{
+    const data=await api("/api/admin/telegram/webhook/setup",{
+      method:"POST",
+      body:"{}"
+    });
+    webhookSetupMessage.className="success";
+    webhookSetupMessage.textContent=data.message||"Telegram Webhook успішно налаштовано.";
+  }catch(error){
+    webhookSetupMessage.className="error";
+    webhookSetupMessage.textContent=error.message;
+  }finally{
+    webhookSetupButton.disabled=false;
+    webhookSetupButton.textContent="Налаштувати Telegram Webhook";
+  }
 });
 
 /* -------------------- ВХІД / ВИХІД -------------------- */
 
-loginForm.addEventListener("submit", async event => {
-event.preventDefault();
+loginForm.addEventListener("submit",async event=>{
+  event.preventDefault();
 
-loginError.textContent = "";
-loginButton.disabled = true;
-loginButton.textContent = "Перевірка…";
+  loginError.textContent="";
+  loginButton.disabled=true;
+  loginButton.textContent="Перевірка…";
 
-try {
-await api("/api/admin/login", {
-method: "POST",
-body: JSON.stringify({
-password: document.getElementById("password").value
-})
+  try{
+    await api("/api/admin/login",{
+      method:"POST",
+      body:JSON.stringify({password:$("password").value})
+    });
+
+    $("password").value="";
+    showDashboard();
+  }catch(error){
+    loginError.textContent=error.message;
+  }finally{
+    loginButton.disabled=false;
+    loginButton.textContent="Увійти";
+  }
 });
 
-document.getElementById("password").value = "";
-showDashboard();
-} catch (error) {
-loginError.textContent = error.message;
-} finally {
-loginButton.disabled = false;
-loginButton.textContent = "Увійти";
-}
+$("refreshButton").addEventListener("click",async()=>{
+  if(!$("productsTab").classList.contains("hidden")){
+    await loadAdminProducts(true);
+  }else if(!$("supportTab").classList.contains("hidden")){
+    if(selectedChatId)await openSupportChat(selectedChatId);
+    else await loadSupportChats();
+  }else{
+    await loadOrders();
+  }
 });
 
-document.getElementById("refreshButton").addEventListener("click", async () => {
-const productsVisible =
-!document.getElementById("productsTab").classList.contains("hidden");
+$("logoutButton").addEventListener("click",async()=>{
+  try{
+    await api("/api/admin/logout",{method:"POST",body:"{}"});
+  }catch{}
 
-const supportVisible =
-!document.getElementById("supportTab").classList.contains("hidden");
-
-if (productsVisible) {
-await loadAdminProducts(true);
-} else if (supportVisible) {
-if (selectedChatId) {
-await openSupportChat(selectedChatId);
-} else {
-await loadSupportChats();
-}
-} else {
-await loadOrders();
-}
+  selectedChatId=null;
+  showLogin();
 });
 
-document.getElementById("logoutButton").addEventListener("click", async () => {
-try {
-await api("/api/admin/logout", {
-method: "POST",
-body: "{}"
-});
-} catch {}
+/* -------------------- ПЕРЕВІРКА СЕСІЇ -------------------- */
 
-selectedChatId = null;
-selectedChatStatus = null;
-showLogin();
-});
-
-/* ПЕРЕВІРКА СЕСІЇ */
-
-(async () => {
-try {
-await api("/api/admin/me");
-showDashboard();
-} catch {
-showLogin();
-}
+(async()=>{
+  try{
+    const data=await api("/api/admin/me");
+    if(data.authenticated===false)throw new Error("Не авторизовано");
+    showDashboard();
+  }catch{
+    showLogin();
+  }
 })();
 </script>
 </body>
