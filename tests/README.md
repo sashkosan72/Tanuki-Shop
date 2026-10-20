@@ -6,12 +6,18 @@
 node --test --test-isolation=none tests/*.test.mjs
 ```
 
-Тести викликають фактичний `default.fetch` із `src/index.js`. Дані створюються в
+Backend-тести викликають фактичний `default.fetch` із `src/index.js`. Дані створюються в
 in-memory SQLite на основі `dev/schema.sql`; ця схема є локальним fixture і не
 встановлює фактичну схему production D1. При завершенні тесту БД закривається.
 Telegram/Cloudflare credentials не читаються з оточення. Виклики outbound `fetch`
 у всіх активних тестах заборонені й перевіряються. Тести виконуються послідовно
 в одному процесі з окремою in-memory БД і відновленням mocks після кожного тесту.
+
+`product-validation.test.mjs` перевіряє створення й редагування знижок, включно
+з відсутністю записів у БД після некоректної ціни. `admin-support.test.mjs`
+виконує наявний inline JavaScript адмінпанелі у Node VM із тестовими DOM/API.
+Керовані затримки відповідей перевіряють перемикання чатів і адресата дій.
+Це перевірка логіки інтерфейсу, не запуск реального браузера чи Telegram.
 
 Адаптер у `helpers/sqlite-d1.mjs` реалізує лише використану підмножину D1 API:
 `prepare`, `bind`, `first`, `all`, `run`, `batch` із rollback. Він потрібен для
