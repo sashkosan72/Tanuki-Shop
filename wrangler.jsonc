@@ -25,12 +25,6 @@
       "bucket_name": "tanuki-shop-images"
     }
   ],
-  "send_email": [
-    { "name": "EMAIL" }
-  ],
-  "vars": {
-    "EMAIL_FROM": "noreply@tanukishop.pp.ua"
-  },
   "ratelimits": [
     {
       "name": "ADMIN_LOGIN_LIMITER",

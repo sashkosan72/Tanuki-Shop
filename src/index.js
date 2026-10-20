@@ -2736,7 +2736,10 @@ export default {
         if (limited) return limited;
         const customer = await customerFromRequest(request, env);
         if (!customer) {
-          return json({ ok: false, error: "Для замовлення увійдіть в акаунт і підтвердьте email або Telegram." }, 401);
+          return json({ ok: false, error: "Для замовлення увійдіть в акаунт." }, 401);
+        }
+        if (!customer.telegram_id) {
+          return json({ ok: false, error: "Для замовлення підтвердьте акаунт через Telegram." }, 403);
         }
         return createOrder(request, env, customer.id);
       }

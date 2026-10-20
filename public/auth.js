@@ -2,6 +2,7 @@
   "use strict";
 
   let user = null;
+  let pendingRegistration = false;
   const $ = id => document.getElementById(id);
 
   async function api(path, data) {
@@ -78,10 +79,16 @@
   function showCurrent() {
     $("accountGuest").hidden = Boolean(user);
     $("accountUser").hidden = !user;
+    $("cancelPendingRegistration").hidden = Boolean(user) || !pendingRegistration;
     $("accountButton").textContent = user ? "👤 Кабінет" : "👤 Увійти";
     if (user) {
       $("accountWelcome").textContent = `Привіт, ${user.name}! 🦝`;
-      $("accountEmail").textContent = user.email ? `${user.email} · підтверджено` : "Вхід через Telegram";
+      $("accountEmail").textContent = user.email
+        ? `${user.email} · ${user.email_verified ? "email підтверджено" : "email не підтверджено"}`
+        : "Вхід через Telegram без email";
+      $("accountTelegramStatus").textContent = user.telegram_connected
+        ? "✅ Telegram підтверджено — можна оформлювати замовлення."
+        : "⚠️ Підтвердьте акаунт через Telegram, щоб оформлювати замовлення.";
       $("telegramConnect").hidden = user.telegram_connected;
       void loadOrders();
     }
@@ -91,6 +98,7 @@
     try {
       const current = await api("/api/auth/me");
       user = current.authenticated ? current.user : null;
+      pendingRegistration = Boolean(current.pending_registration);
     } catch {
       user = null;
     }
@@ -99,9 +107,11 @@
   }
 
   async function requireLogin() {
-    if (await refresh()) return true;
+    if (await refresh() && user.telegram_connected) return true;
     open();
-    message("Щоб оформити замовлення, зареєструйтеся або увійдіть.");
+    message(user
+      ? "Для оформлення замовлення спочатку підтвердьте акаунт через Telegram."
+      : "Щоб оформити замовлення, зареєструйтеся або увійдіть.");
     return false;
   }
 
@@ -137,6 +147,7 @@
     try {
       const result = await api("/api/auth/telegram", telegramUser);
       user = result.user;
+      pendingRegistration = false;
       showCurrent();
       message("Telegram успішно підключено!");
     } catch (error) {
@@ -164,8 +175,11 @@
       }, async result => {
         $("loginPassword").value = "";
         user = result.user;
+        pendingRegistration = false;
         showCurrent();
-        message("Ви увійшли в акаунт!");
+        message(result.needs_telegram
+          ? "Ви увійшли. Підтвердьте акаунт через Telegram перед покупкою."
+          : "Ви увійшли в акаунт!");
       });
     });
 
@@ -177,10 +191,9 @@
         password: $("registerPassword").value
       }, async result => {
         $("registerPassword").value = "";
-        const email = $("registerEmail").value.trim();
+        pendingRegistration = true;
         toggleForm(false);
-        $("loginEmail").value = email;
-        $("resendEmail").value = email;
+        showCurrent();
         message(result.message);
       });
     });
@@ -192,10 +205,20 @@
       }, async result => message(result.message));
     });
 
+    $("cancelPendingRegistration").addEventListener("click", async () => {
+      try {
+        const result = await api("/api/auth/cancel-registration", {});
+        pendingRegistration = false;
+        showCurrent();
+        message(result.message);
+      } catch (error) { message(error.message, true); }
+    });
+
     $("logoutAccount").addEventListener("click", async () => {
       try {
         await api("/api/auth/logout", {});
         user = null;
+        pendingRegistration = false;
         showCurrent();
         message("Ви вийшли з акаунта.");
       } catch (error) { message(error.message, true); }

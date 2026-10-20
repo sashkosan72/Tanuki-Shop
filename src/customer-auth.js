@@ -1,6 +1,8 @@
 // Покупці Tanuki Shop. Не використовує існуючу admin-сесію.
 const COOKIE_NAME = "__Host-tanuki_customer";
+const PENDING_COOKIE_NAME = "__Host-tanuki_registration";
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
+const PENDING_SECONDS = 15 * 60;
 const PASSWORD_ITERATIONS = 210_000;
 const enc = new TextEncoder();
 
@@ -15,11 +17,25 @@ function cookie(value, maxAge = SESSION_SECONDS) {
   return `${COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
 }
 
-function readCookie(request) {
+function pendingCookie(value, maxAge = PENDING_SECONDS) {
+  return `${PENDING_COOKIE_NAME}=${encodeURIComponent(value)}; Path=/; Max-Age=${maxAge}; HttpOnly; Secure; SameSite=Lax`;
+}
+
+function jsonWithCookies(body, cookies, status = 200) {
+  const response = json(body, status);
+  for (const value of cookies) response.headers.append("Set-Cookie", value);
+  return response;
+}
+
+function readNamedCookie(request, name) {
   const header = request.headers.get("Cookie") || "";
-  const item = header.split(";").map(part => part.trim()).find(part => part.startsWith(`${COOKIE_NAME}=`));
+  const item = header.split(";").map(part => part.trim()).find(part => part.startsWith(`${name}=`));
   if (!item) return null;
-  try { return decodeURIComponent(item.slice(COOKIE_NAME.length + 1)); } catch { return null; }
+  try { return decodeURIComponent(item.slice(name.length + 1)); } catch { return null; }
+}
+
+function readCookie(request) {
+  return readNamedCookie(request, COOKIE_NAME);
 }
 
 function hex(bytes) {
@@ -95,7 +111,6 @@ export async function customerFromRequest(request, env) {
     SELECT c.id, c.email, c.display_name, c.email_verified_at, c.telegram_id
     FROM customer_sessions s JOIN customers c ON c.id = s.customer_id
     WHERE s.token_hash = ? AND s.expires_at > CURRENT_TIMESTAMP
-      AND (c.telegram_id IS NOT NULL OR c.email_verified_at IS NOT NULL)
     LIMIT 1
   `).bind(tokenHash).first();
 }
@@ -127,7 +142,6 @@ async function sendVerification(env, customerId, email) {
 }
 
 async function emailRegister(request, env) {
-  if (!env.EMAIL?.send) return json({ ok: false, error: "Відправка листів ще не налаштована." }, 503);
   const body = await bodyFrom(request);
   const email = emailAddress(body?.email);
   const password = body?.password;
@@ -135,20 +149,37 @@ async function emailRegister(request, env) {
   if (!email || typeof password !== "string" || password.length < 12 || password.length > 128) {
     return json({ ok: false, error: "Перевірте email і пароль (від 12 до 128 символів)." }, 400);
   }
+  const existing = await env.DB.prepare("SELECT id FROM customers WHERE email = ? LIMIT 1").bind(email).first();
+  if (existing) return json({ ok: false, error: "Цей email уже зареєстрований. Увійдіть в акаунт." }, 409);
+
   const salt = hex(crypto.getRandomValues(new Uint8Array(16)));
   const hash = await passwordHash(password, salt);
+  const token = randomToken();
   try {
-    const result = await env.DB.prepare(`
-      INSERT INTO customers(email, display_name, password_salt, password_hash)
-      VALUES (?, ?, ?, ?) ON CONFLICT(email) DO NOTHING
-    `).bind(email, name, salt, hash).run();
-    if (!(result.meta?.changes || 0)) return json({ ok: false, error: "Цей email уже зареєстрований. Увійдіть або запросіть повторний лист." }, 409);
-    await sendVerification(env, result.meta.last_row_id, email);
-    return json({ ok: true, message: "Перевірте пошту: ми надіслали посилання для підтвердження." }, 201);
+    // Заявка не створює акаунт. Вона стане акаунтом лише після перевірки Telegram.
+    await env.DB.prepare("DELETE FROM customer_registration_attempts WHERE expires_at <= CURRENT_TIMESTAMP").bind().run();
+    await env.DB.prepare(`
+      INSERT INTO customer_registration_attempts
+        (token_hash, email, display_name, password_salt, password_hash, expires_at)
+      VALUES (?, ?, ?, ?, ?, datetime('now', '+15 minutes'))
+    `).bind(await digest(token), email, name, salt, hash).run();
+    return jsonWithCookies({
+      ok: true,
+      message: "Тепер підтвердіть реєстрацію через Telegram протягом 15 хвилин."
+    }, [pendingCookie(token)], 201);
   } catch (error) {
-    console.error("Customer registration/email error:", error.message);
-    return json({ ok: false, error: "Не вдалося надіслати лист. Спробуйте повторне підтвердження пізніше." }, 503);
+    console.error("Customer registration error:", error.message);
+    return json({ ok: false, error: "Не вдалося створити заявку на реєстрацію. Спробуйте пізніше." }, 503);
   }
+}
+
+async function cancelRegistration(request, env) {
+  const token = readNamedCookie(request, PENDING_COOKIE_NAME);
+  if (token && /^[a-f0-9]{64}$/.test(token)) {
+    await env.DB.prepare("DELETE FROM customer_registration_attempts WHERE token_hash = ?")
+      .bind(await digest(token)).run();
+  }
+  return jsonWithCookies({ ok: true, message: "Незавершену реєстрацію скасовано." }, [pendingCookie("", 0)]);
 }
 
 async function resendVerification(request, env) {
@@ -200,9 +231,11 @@ async function emailLogin(request, env) {
   if (!row?.password_hash || !row.password_salt) return json({ ok: false, error: "Неправильний email або пароль." }, 401);
   const actual = await passwordHash(password, row.password_salt);
   if (!constantTimeEqual(fromHex(actual), fromHex(row.password_hash))) return json({ ok: false, error: "Неправильний email або пароль." }, 401);
-  if (!row.email_verified_at) return json({ ok: false, error: "Підтвердьте email за посиланням із листа." }, 403);
+  // Старі акаунти без Telegram можуть увійти лише для прив'язування Telegram.
+  // Checkout перевіряє Telegram окремо на сервері.
   const token = await newSession(env, row.id);
-  return json({ ok: true, user: publicCustomer(row) }, 200, { "Set-Cookie": cookie(token) });
+  return jsonWithCookies({ ok: true, user: publicCustomer(row), needs_telegram: !row.telegram_id },
+    [cookie(token), pendingCookie("", 0)]);
 }
 
 async function telegramValid(data, token) {
@@ -240,10 +273,64 @@ async function telegramLogin(request, env) {
     if ((occupied && occupied.id !== active.id) || (active.telegram_id && active.telegram_id !== telegramId)) {
       return json({ ok: false, error: "Цей Telegram уже пов'язаний з іншим акаунтом." }, 409);
     }
-    await env.DB.prepare("UPDATE customers SET telegram_id = ? WHERE id = ?").bind(telegramId, active.id).run();
+    try {
+      await env.DB.prepare("UPDATE customers SET telegram_id = ? WHERE id = ? AND (telegram_id IS NULL OR telegram_id = ?)")
+        .bind(telegramId, active.id, telegramId).run();
+    } catch {
+      return json({ ok: false, error: "Цей Telegram уже пов'язаний з іншим акаунтом." }, 409);
+    }
     const row = await env.DB.prepare("SELECT * FROM customers WHERE id = ?").bind(active.id).first();
+    if (row?.telegram_id !== telegramId) {
+      return json({ ok: false, error: "Не вдалося прив'язати Telegram до цього акаунта." }, 409);
+    }
     return json({ ok: true, user: publicCustomer(row) });
   }
+
+  const pendingToken = readNamedCookie(request, PENDING_COOKIE_NAME);
+  if (pendingToken !== null) {
+    if (!/^[a-f0-9]{64}$/.test(pendingToken)) {
+      return json({ ok: false, error: "Недійсна заявка на реєстрацію." }, 400);
+    }
+    const pendingHash = await digest(pendingToken);
+    const pending = await env.DB.prepare(`
+      SELECT email FROM customer_registration_attempts
+      WHERE token_hash = ? AND expires_at > CURRENT_TIMESTAMP LIMIT 1
+    `).bind(pendingHash).first();
+    if (!pending) {
+      return jsonWithCookies({ ok: false, error: "Час підтвердження минув. Зареєструйтеся ще раз." },
+        [pendingCookie("", 0)], 410);
+    }
+    try {
+      // INSERT і видалення використаної заявки атомарні. Діючі акаунти не змінюємо.
+      const results = await env.DB.batch([
+        env.DB.prepare(`
+          INSERT INTO customers(email, display_name, password_salt, password_hash, telegram_id)
+          SELECT r.email, r.display_name, r.password_salt, r.password_hash, ?
+          FROM customer_registration_attempts r
+          WHERE r.token_hash = ? AND r.expires_at > CURRENT_TIMESTAMP
+            AND NOT EXISTS (SELECT 1 FROM customers c WHERE c.email = r.email OR c.telegram_id = ?)
+        `).bind(telegramId, pendingHash, telegramId),
+        env.DB.prepare(`
+          DELETE FROM customer_registration_attempts
+          WHERE token_hash = ? AND EXISTS (
+            SELECT 1 FROM customers WHERE email = ? AND telegram_id = ?
+          )
+        `).bind(pendingHash, pending.email, telegramId)
+      ]);
+      if (!(results[0]?.meta?.changes || 0)) {
+        return json({ ok: false, error: "Email або Telegram уже прив'язано до іншого акаунта. Увійдіть у свій акаунт." }, 409);
+      }
+      const row = await env.DB.prepare("SELECT * FROM customers WHERE telegram_id = ?").bind(telegramId).first();
+      const token = await newSession(env, row.id);
+      return jsonWithCookies({ ok: true, user: publicCustomer(row) },
+        [cookie(token), pendingCookie("", 0)]);
+    } catch (error) {
+      console.error("Telegram registration error:", error.message);
+      return json({ ok: false, error: "Не вдалося підтвердити акаунт. Перевірте, чи email або Telegram вже не зайнятий." }, 409);
+    }
+  }
+
+  // Старий спосіб входу тільки через Telegram зберігається.
   await env.DB.prepare(`
     INSERT INTO customers(telegram_id, display_name) VALUES (?, ?)
     ON CONFLICT(telegram_id) DO NOTHING
@@ -274,7 +361,13 @@ export async function routeCustomerApi(request, env, checkRateLimit) {
   const method = request.method.toUpperCase();
   if (path === "/api/auth/me" && method === "GET") {
     const customer = await customerFromRequest(request, env);
-    return json({ ok: true, authenticated: Boolean(customer), user: customer ? publicCustomer(customer) : null });
+    const pending = !customer && readNamedCookie(request, PENDING_COOKIE_NAME);
+    return json({
+      ok: true,
+      authenticated: Boolean(customer),
+      user: customer ? publicCustomer(customer) : null,
+      pending_registration: Boolean(pending)
+    });
   }
   if (path === "/api/account/orders" && method === "GET") {
     const customer = await customerFromRequest(request, env);
@@ -287,11 +380,12 @@ export async function routeCustomerApi(request, env, checkRateLimit) {
     if (token && /^[a-f0-9]{64}$/.test(token)) {
       await env.DB.prepare("DELETE FROM customer_sessions WHERE token_hash = ?").bind(await digest(token)).run();
     }
-    return json({ ok: true }, 200, { "Set-Cookie": cookie("", 0) });
+    return jsonWithCookies({ ok: true }, [cookie("", 0), pendingCookie("", 0)]);
   }
   const limited = await checkRateLimit(request, env.CUSTOMER_AUTH_LIMITER);
   if (limited) return limited;
   if (path === "/api/auth/register") return emailRegister(request, env);
+  if (path === "/api/auth/cancel-registration") return cancelRegistration(request, env);
   if (path === "/api/auth/login") return emailLogin(request, env);
   if (path === "/api/auth/verify") return verifyEmail(request, env);
   if (path === "/api/auth/resend") return resendVerification(request, env);

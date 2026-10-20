@@ -359,20 +359,24 @@
           <label>Ім'я<input id="registerName" type="text" autocomplete="name" maxlength="100"></label>
           <label>Email<input id="registerEmail" type="email" autocomplete="email" required maxlength="254"></label>
           <label>Пароль (від 12 символів)<input id="registerPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+          <p class="account-hint">Після реєстрації підтвердьте акаунт через Telegram. Лист на пошту не потрібен.</p>
           <button type="submit" class="account-primary">Створити акаунт</button>
         </form>
-        <form id="resendForm" class="account-form account-resend">
+        <!-- Залишаємо можливість повторного листа для старих акаунтів; зараз спосіб вимкнено в UI. -->
+        <form id="resendForm" class="account-form account-resend" hidden>
           <label>Не отримали лист?<input id="resendEmail" type="email" placeholder="Ваша email-адреса" maxlength="254" required></label>
           <button type="submit">Повторно надіслати підтвердження</button>
         </form>
         <div class="account-telegram">
-          <span>або увійдіть через Telegram</span>
+          <span>Підтвердіть нову реєстрацію або увійдіть через Telegram</span>
           <div id="telegramLogin"></div>
+          <button type="button" id="cancelPendingRegistration" class="account-cancel" hidden>Скасувати незавершену реєстрацію</button>
         </div>
       </div>
       <div id="accountUser" hidden>
         <h3 id="accountWelcome"></h3>
         <p id="accountEmail"></p>
+        <p id="accountTelegramStatus" role="status"></p>
         <div id="telegramConnect" class="account-telegram" hidden>
           <p>Прив'язати Telegram до акаунта:</p>
           <div id="telegramConnectWidget"></div>

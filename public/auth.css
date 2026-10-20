@@ -55,7 +55,11 @@
 .account-form .account-primary { background: #e44c98; color: #fff; border-color: #e44c98; }
 .account-form button:disabled { opacity: 0.65; cursor: wait; }
 .account-resend { border-top: 1px solid #f3e4ed; margin-top: 18px; padding-top: 16px; }
+.account-hint { margin: 0; color: #725e70; font-size: 0.85rem; line-height: 1.5; }
+#accountTelegramStatus { margin-top: 8px; font-size: 0.9rem; }
 .account-telegram { display: grid; justify-items: center; text-align: center; gap: 12px; padding-top: 18px; }
+.account-cancel { border: 0; background: transparent; color: #a23573; text-decoration: underline; cursor: pointer; font: inherit; font-size: 0.85rem; }
+.account-cancel[hidden] { display: none !important; }
 .account-order { padding: 12px; margin: 12px 0; border: 1px solid #f0dce7; border-radius: 12px; background: #fffafd; }
 .account-order p { margin: 5px 0; font-size: 0.88rem; }
 #logoutAccount { margin-top: 18px; width: 100%; }

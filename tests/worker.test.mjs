@@ -52,9 +52,10 @@ function createTestDatabase() {
   `);
   // Тестуємо саме SQL-міграцію з репозиторію.
   sqlite.exec(readFileSync(new URL("../migrations/0001_customer_auth.sql", import.meta.url), "utf8"));
+  sqlite.exec(readFileSync(new URL("../migrations/0002_telegram_registration.sql", import.meta.url), "utf8"));
   sqlite.prepare(`
-    INSERT INTO customers(id, email, display_name, password_salt, password_hash, email_verified_at)
-    VALUES (1, 'buyer@example.test', 'Покупець', 'placeholder', 'placeholder', CURRENT_TIMESTAMP)
+    INSERT INTO customers(id, email, display_name, password_salt, password_hash, email_verified_at, telegram_id)
+    VALUES (1, 'buyer@example.test', 'Покупець', 'placeholder', 'placeholder', CURRENT_TIMESTAMP, '111')
   `).run();
   sqlite.prepare(`
     INSERT INTO customer_sessions(token_hash, customer_id, expires_at)
@@ -305,6 +306,20 @@ function authRequest(path, body, cookie = "") {
   });
 }
 
+function signedTelegramPayload(env, id = 123456) {
+  const payload = { id, first_name: "Танукі", auth_date: Math.floor(Date.now() / 1000) };
+  const content = Object.keys(payload).sort().map(key => `${key}=${payload[key]}`).join("\n");
+  const signatureKey = createHash("sha256").update(env.TELEGRAM_BOT_TOKEN).digest();
+  payload.hash = createHmac("sha256", signatureKey).update(content).digest("hex");
+  return payload;
+}
+
+function responseCookie(response, prefix) {
+  const header = response.headers.getSetCookie().find(value => value.startsWith(prefix));
+  assert.ok(header, `Missing cookie: ${prefix}`);
+  return header.split(";")[0];
+}
+
 test("checkout requires a verified customer session", async t => {
   const { sqlite, DB } = createTestDatabase();
   t.after(() => sqlite.close());
@@ -315,47 +330,156 @@ test("checkout requires a verified customer session", async t => {
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 0);
 });
 
-test("email registration, verification, login and logout", async t => {
+test("email + password registration requires Telegram and works without Email Sending", async t => {
   const { sqlite, DB } = createTestDatabase();
   t.after(() => sqlite.close());
   const env = createEnv(DB);
+  delete env.EMAIL;
   const email = "new@example.test";
   const password = "AReallyLongTestPassword!2026";
   const registration = await worker.fetch(authRequest("/api/auth/register", { name: "Новий покупець", email, password }), env);
   assert.equal(registration.status, 201);
-  assert.equal(env.EMAIL.messages.length, 1);
+  const pendingCookie = responseCookie(registration, "__Host-tanuki_registration=");
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM customers WHERE email = ?").get(email).count, 0);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM customer_registration_attempts").get().count, 1);
+  const beforeVerify = await worker.fetch(authRequest("/api/auth/login", { email, password }), env);
+  assert.equal(beforeVerify.status, 401);
+
+  const telegram = signedTelegramPayload(env);
+  const invalid = await worker.fetch(authRequest("/api/auth/telegram", { ...telegram, first_name: "Підроблено" }, pendingCookie), env);
+  assert.equal(invalid.status, 401);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM customers WHERE email = ?").get(email).count, 0);
+
+  const verified = await worker.fetch(authRequest("/api/auth/telegram", telegram, pendingCookie), env);
+  assert.equal(verified.status, 200);
   const row = sqlite.prepare("SELECT * FROM customers WHERE email = ?").get(email);
   assert.ok(row.password_hash);
-  assert.equal(row.email_verified_at, null);
-  const beforeVerify = await worker.fetch(authRequest("/api/auth/login", { email, password }), env);
-  assert.equal(beforeVerify.status, 403);
-  const token = /#verify=([a-f0-9]{64})/.exec(env.EMAIL.messages[0].text)[1];
-  const verify = await worker.fetch(authRequest("/api/auth/verify", { token }), env);
-  assert.equal(verify.status, 200);
-  const reused = await worker.fetch(authRequest("/api/auth/verify", { token }), env);
-  assert.equal(reused.status, 400);
+  assert.equal(row.telegram_id, "123456");
+  assert.equal(row.email_verified_at, null); // Telegram не верифікує адресу email.
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM customer_registration_attempts").get().count, 0);
+  const replay = await worker.fetch(authRequest("/api/auth/telegram", telegram, pendingCookie), env);
+  assert.equal(replay.status, 410);
+
   const wrongPassword = await worker.fetch(authRequest("/api/auth/login", { email, password: "wrongpassword!!!!" }), env);
   assert.equal(wrongPassword.status, 401);
   const login = await worker.fetch(authRequest("/api/auth/login", { email, password }), env);
   assert.equal(login.status, 200);
   assert.match(login.headers.get("Set-Cookie"), /HttpOnly; Secure; SameSite=Lax/);
-  const cookie = login.headers.get("Set-Cookie").split(";")[0];
+  const cookie = responseCookie(login, "__Host-tanuki_customer=");
   const me = await worker.fetch(new Request("https://test.invalid/api/auth/me", { headers: { Cookie: cookie } }), env);
   assert.equal((await me.json()).user.email, email);
+  const customerOrder = orderRequest();
+  customerOrder.headers.set("Cookie", cookie);
+  const order = await worker.fetch(customerOrder, env);
+  assert.equal(order.status, 201);
   const logout = await worker.fetch(authRequest("/api/auth/logout", {}, cookie), env);
   assert.equal(logout.status, 200);
   const after = await worker.fetch(new Request("https://test.invalid/api/auth/me", { headers: { Cookie: cookie } }), env);
   assert.equal((await after.json()).authenticated, false);
 });
 
+test("Telegram cannot be reused to claim another pending email registration", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  delete env.EMAIL;
+  const first = await worker.fetch(authRequest("/api/auth/register", {
+    email: "first@example.test", password: "LongAndSafePassword123"
+  }), env);
+  const second = await worker.fetch(authRequest("/api/auth/register", {
+    email: "second@example.test", password: "AnotherSafePassword123"
+  }), env);
+  const telegram = signedTelegramPayload(env, 7777);
+  assert.equal((await worker.fetch(authRequest("/api/auth/telegram", telegram,
+    responseCookie(first, "__Host-tanuki_registration=")), env)).status, 200);
+  const conflict = await worker.fetch(authRequest("/api/auth/telegram", telegram,
+    responseCookie(second, "__Host-tanuki_registration=")), env);
+  assert.equal(conflict.status, 409);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customers WHERE telegram_id = '7777'").get().n, 1);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customers WHERE email = 'second@example.test'").get().n, 0);
+});
+
+test("expired Telegram confirmation cannot activate the pending account", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  const registration = await worker.fetch(authRequest("/api/auth/register", {
+    email: "expired@example.test", password: "LongAndSafePassword123"
+  }), env);
+  sqlite.exec("UPDATE customer_registration_attempts SET expires_at = datetime('now', '-1 minute')");
+  const confirmation = await worker.fetch(authRequest("/api/auth/telegram", signedTelegramPayload(env),
+    responseCookie(registration, "__Host-tanuki_registration=")), env);
+  assert.equal(confirmation.status, 410);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customers WHERE email = 'expired@example.test'").get().n, 0);
+});
+
+test("pending registration can be cancelled without deleting any customer", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  const registration = await worker.fetch(authRequest("/api/auth/register", {
+    email: "cancel@example.test", password: "LongAndSafePassword123"
+  }), env);
+  const pendingCookie = responseCookie(registration, "__Host-tanuki_registration=");
+  const pendingMe = await worker.fetch(new Request("https://test.invalid/api/auth/me", { headers: { Cookie: pendingCookie } }), env);
+  assert.equal((await pendingMe.json()).pending_registration, true);
+  const cancelled = await worker.fetch(authRequest("/api/auth/cancel-registration", {}, pendingCookie), env);
+  assert.equal(cancelled.status, 200);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customer_registration_attempts").get().n, 0);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customers").get().n, 1);
+  const after = await worker.fetch(new Request("https://test.invalid/api/auth/me", {
+    headers: { Cookie: responseCookie(cancelled, "__Host-tanuki_registration=") }
+  }), env);
+  assert.equal((await after.json()).pending_registration, false);
+});
+
+test("existing email-only customer keeps the account but must link Telegram before checkout", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  sqlite.prepare(`
+    INSERT INTO customers(id, email, password_salt, password_hash, email_verified_at)
+    VALUES (5, 'legacy@example.test', 'old-salt', 'old-hash', CURRENT_TIMESTAMP)
+  `).run();
+  const rawToken = "d".repeat(64);
+  sqlite.prepare("INSERT INTO customer_sessions(token_hash, customer_id, expires_at) VALUES (?, 5, datetime('now', '+7 days'))")
+    .run(createHash("sha256").update(rawToken).digest("hex"));
+  const legacyCookie = `__Host-tanuki_customer=${rawToken}`;
+  const me = await worker.fetch(new Request("https://test.invalid/api/auth/me", { headers: { Cookie: legacyCookie } }), env);
+  assert.equal((await me.json()).user.telegram_connected, false);
+  const before = orderRequest();
+  before.headers.set("Cookie", legacyCookie);
+  assert.equal((await worker.fetch(before, env)).status, 403);
+  const link = await worker.fetch(authRequest("/api/auth/telegram", signedTelegramPayload(env, 3333), legacyCookie), env);
+  assert.equal(link.status, 200);
+  assert.equal(sqlite.prepare("SELECT telegram_id FROM customers WHERE id = 5").get().telegram_id, "3333");
+  const after = orderRequest();
+  after.headers.set("Cookie", legacyCookie);
+  assert.equal((await worker.fetch(after, env)).status, 201);
+});
+
+test("legacy email verification endpoint remains available if email sending is later configured", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  sqlite.prepare(`
+    INSERT INTO customers(id, email, password_salt, password_hash)
+    VALUES (6, 'older@example.test', 'old-salt', 'old-hash')
+  `).run();
+  const resend = await worker.fetch(authRequest("/api/auth/resend", { email: "older@example.test" }), env);
+  assert.equal(resend.status, 200);
+  const token = /#verify=([a-f0-9]{64})/.exec(env.EMAIL.messages[0].text)[1];
+  const verify = await worker.fetch(authRequest("/api/auth/verify", { token }), env);
+  assert.equal(verify.status, 200);
+  assert.ok(sqlite.prepare("SELECT email_verified_at FROM customers WHERE id = 6").get().email_verified_at);
+  assert.equal(sqlite.prepare("SELECT telegram_id FROM customers WHERE id = 6").get().telegram_id, null);
+});
+
 test("Telegram login verifies HMAC and rejects altered, stale or unsigned data", async t => {
   const { sqlite, DB } = createTestDatabase();
   t.after(() => sqlite.close());
   const env = createEnv(DB);
-  const payload = { id: 123456, first_name: "Танукі", auth_date: Math.floor(Date.now() / 1000) };
-  const content = Object.keys(payload).sort().map(key => `${key}=${payload[key]}`).join("\n");
-  const signatureKey = createHash("sha256").update(env.TELEGRAM_BOT_TOKEN).digest();
-  payload.hash = createHmac("sha256", signatureKey).update(content).digest("hex");
+  const payload = signedTelegramPayload(env);
   const response = await worker.fetch(authRequest("/api/auth/telegram", payload), env);
   assert.equal(response.status, 200);
   assert.equal(sqlite.prepare("SELECT telegram_id FROM customers WHERE telegram_id = ?").get("123456").telegram_id, "123456");
@@ -391,7 +515,7 @@ test("account order history is private and linked to the correct customer", asyn
   assert.equal((await other.json()).orders.length, 0);
 });
 
-test("customer authentication is rate limited and email setup is fail-closed", async t => {
+test("customer authentication is rate limited and email sending is optional", async t => {
   const { sqlite, DB } = createTestDatabase();
   t.after(() => sqlite.close());
   const env = createEnv(DB, false);
@@ -404,8 +528,9 @@ test("customer authentication is rate limited and email setup is fail-closed", a
   const missingEmail = await worker.fetch(authRequest("/api/auth/register", {
     email: "example@example.test", password: "LongEnoughPassword1!"
   }), env);
-  assert.equal(missingEmail.status, 503);
+  assert.equal(missingEmail.status, 201);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customers").get().n, 1);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customer_registration_attempts").get().n, 1);
   const crossOrigin = await worker.fetch(new Request("https://test.invalid/api/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json", Origin: "https://another.invalid" },
