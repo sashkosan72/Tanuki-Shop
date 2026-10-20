@@ -1,0 +1,21 @@
+{
+  "name": "tanuki-shop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.3"
+  },
+  "scripts": {
+    "dev": "wrangler dev --config wrangler.local.jsonc --local --ip 127.0.0.1",
+    "db:local:init": "wrangler d1 execute tanuki-shop-local-db --config wrangler.local.jsonc --local --file dev/schema.sql",
+    "db:local:seed": "wrangler d1 execute tanuki-shop-local-db --config wrangler.local.jsonc --local --file dev/seed.sql",
+    "check": "node scripts/check.mjs",
+    "test": "node --test --test-isolation=none tests/*.test.mjs",
+    "build:check": "wrangler deploy --config wrangler.local.jsonc --dry-run --outdir .wrangler/dry-run",
+    "types": "wrangler types --config wrangler.local.jsonc .wrangler/worker-local.d.ts"
+  }
+}
