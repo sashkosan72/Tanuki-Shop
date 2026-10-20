@@ -1403,7 +1403,16 @@ async function adminCreateProduct(request, env) {
   const trackStock = body.track_stock ? 1 : 0;
   const active = body.active === false ? 0 : 1;
 
-  if (!name || !category || price === null || stock === null) {
+  if (
+    !name ||
+    !category ||
+    price === null ||
+    stock === null ||
+    (body.sale_price !== undefined &&
+      body.sale_price !== null &&
+      body.sale_price !== "" &&
+      salePrice === null)
+  ) {
     return json({
       ok: false,
       error: "Перевірте назву, категорію, ціну та залишок."
