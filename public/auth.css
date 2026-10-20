@@ -1,0 +1,67 @@
+.account-button {
+  border: 1px solid #f6aac9;
+  background: #fff;
+  color: #a23573;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.account-button:hover { background: #fff2f8; }
+.account-modal[hidden], .account-form[hidden], #accountGuest[hidden],
+#accountUser[hidden], #telegramConnect[hidden] { display: none !important; }
+.account-modal { position: fixed; inset: 0; display: grid; place-items: center; z-index: 20000; padding: 16px; }
+.account-overlay { position: absolute; inset: 0; background: #31192b99; }
+.account-window {
+  position: relative;
+  width: min(100%, 480px);
+  max-height: min(90vh, 860px);
+  overflow: auto;
+  border-radius: 22px;
+  background: #fff;
+  box-shadow: 0 18px 70px #512c4859;
+  color: #453146;
+}
+.account-header { display: flex; align-items: center; justify-content: space-between; background: #fff0f7; padding: 18px 22px; }
+.account-header h2 { margin: 0; font-size: 1.4rem; }
+.account-header button { font-size: 22px; background: transparent; border: 0; cursor: pointer; color: #79475f; }
+.account-content { padding: 20px 22px 24px; }
+.account-message { min-height: 1.25em; font-size: 0.92rem; color: #38734c; }
+.account-message.error { color: #b52e4f; }
+.account-tabs { display: flex; gap: 10px; margin-bottom: 18px; }
+.account-tabs button { flex: 1; padding: 10px; border-radius: 12px; border: 1px solid #efd0e1; background: #fff; cursor: pointer; }
+.account-tabs button.selected { background: #fbd3e7; border-color: #efaacb; font-weight: 700; }
+.account-form { display: grid; gap: 12px; }
+.account-form label { display: grid; gap: 5px; font-size: 0.92rem; font-weight: 600; }
+.account-form input {
+  width: 100%;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid #e1c6d5;
+  border-radius: 10px;
+  font: inherit;
+}
+.account-form button, #logoutAccount {
+  padding: 12px;
+  border: 1px solid #edacd1;
+  border-radius: 11px;
+  background: #fff4fa;
+  color: #9e326f;
+  font-weight: 700;
+  cursor: pointer;
+}
+.account-form .account-primary { background: #e44c98; color: #fff; border-color: #e44c98; }
+.account-form button:disabled { opacity: 0.65; cursor: wait; }
+.account-resend { border-top: 1px solid #f3e4ed; margin-top: 18px; padding-top: 16px; }
+.account-telegram { display: grid; justify-items: center; text-align: center; gap: 12px; padding-top: 18px; }
+.account-order { padding: 12px; margin: 12px 0; border: 1px solid #f0dce7; border-radius: 12px; background: #fffafd; }
+.account-order p { margin: 5px 0; font-size: 0.88rem; }
+#logoutAccount { margin-top: 18px; width: 100%; }
+.account-open { overflow: hidden; }
+@media (max-width: 560px) {
+  .account-button { font-size: 0.82rem; padding: 9px 11px; }
+  .account-header h2 { font-size: 1.15rem; }
+  .account-content { padding: 16px; }
+}

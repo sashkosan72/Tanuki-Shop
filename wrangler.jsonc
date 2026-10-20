@@ -25,6 +25,12 @@
       "bucket_name": "tanuki-shop-images"
     }
   ],
+  "send_email": [
+    { "name": "EMAIL" }
+  ],
+  "vars": {
+    "EMAIL_FROM": "noreply@tanukishop.pp.ua"
+  },
   "ratelimits": [
     {
       "name": "ADMIN_LOGIN_LIMITER",
@@ -34,6 +40,11 @@
     {
       "name": "ORDER_RATE_LIMITER",
       "namespace_id": "92836114",
+      "simple": { "limit": 10, "period": 60 }
+    },
+    {
+      "name": "CUSTOMER_AUTH_LIMITER",
+      "namespace_id": "92836115",
       "simple": { "limit": 10, "period": 60 }
     }
   ]

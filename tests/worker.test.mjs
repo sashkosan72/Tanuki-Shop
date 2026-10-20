@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
+import { createHash, createHmac } from "node:crypto";
+import { readFileSync } from "node:fs";
 import worker from "../src/index.js";
+
+const TEST_TOKEN = "a".repeat(64);
 
 // Ізольована SQLite in-memory. Жодне тестове замовлення не надсилається в D1.
 function createTestDatabase() {
@@ -27,7 +31,8 @@ function createTestDatabase() {
       customer_address TEXT NOT NULL,
       customer_comment TEXT,
       total_amount INTEGER NOT NULL,
-      status TEXT NOT NULL
+      status TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE order_items (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -45,6 +50,16 @@ function createTestDatabase() {
       used_at TEXT
     );
   `);
+  // Тестуємо саме SQL-міграцію з репозиторію.
+  sqlite.exec(readFileSync(new URL("../migrations/0001_customer_auth.sql", import.meta.url), "utf8"));
+  sqlite.prepare(`
+    INSERT INTO customers(id, email, display_name, password_salt, password_hash, email_verified_at)
+    VALUES (1, 'buyer@example.test', 'Покупець', 'placeholder', 'placeholder', CURRENT_TIMESTAMP)
+  `).run();
+  sqlite.prepare(`
+    INSERT INTO customer_sessions(token_hash, customer_id, expires_at)
+    VALUES (?, 1, datetime('now', '+7 days'))
+  `).run(createHash("sha256").update(TEST_TOKEN).digest("hex"));
 
   sqlite.prepare(`
     INSERT INTO products (id, name, price, sale_price, stock, track_stock, active)
@@ -106,6 +121,13 @@ function createEnv(DB, limitResult = true) {
   return {
     DB,
     ADMIN_PASSWORD: "test-admin-password-never-for-production",
+    CUSTOMER_AUTH_LIMITER: limiter,
+    TELEGRAM_BOT_TOKEN: "test-telegram-bot-secret",
+    EMAIL_FROM: "noreply@tanukishop.pp.ua",
+    EMAIL: {
+      messages: [],
+      async send(message) { this.messages.push(message); return { messageId: "test-message" }; }
+    },
     ADMIN_LOGIN_LIMITER: limiter,
     ORDER_RATE_LIMITER: limiter
   };
@@ -116,7 +138,8 @@ function orderRequest(items = [{ id: "manga-1", quantity: 2 }]) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "CF-Connecting-IP": "192.0.2.25"
+      "CF-Connecting-IP": "192.0.2.25",
+      Cookie: `__Host-tanuki_customer=${TEST_TOKEN}`
     },
     body: JSON.stringify({
       customerName: "Тестовий покупець",
@@ -141,6 +164,7 @@ test("checkout atomically saves the order and reserves stock", async t => {
   assert.equal(sqlite.prepare("SELECT stock FROM products").get().stock, 3);
   assert.equal(sqlite.prepare("SELECT COUNT(*) AS count FROM orders").get().count, 1);
   assert.equal(sqlite.prepare("SELECT quantity FROM order_items").get().quantity, 2);
+  assert.equal(sqlite.prepare("SELECT customer_id FROM customer_orders").get().customer_id, 1);
 });
 
 test("insufficient stock does not create an order or reduce stock", async t => {
@@ -271,4 +295,121 @@ test("missing protection binding fails closed", async t => {
   }), env);
 
   assert.equal(response.status, 503);
+});
+
+function authRequest(path, body, cookie = "") {
+  return new Request(`https://test.invalid${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+    body: JSON.stringify(body)
+  });
+}
+
+test("checkout requires a verified customer session", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const guest = orderRequest();
+  guest.headers.delete("Cookie");
+  const response = await worker.fetch(guest, createEnv(DB));
+  assert.equal(response.status, 401);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM orders").get().n, 0);
+});
+
+test("email registration, verification, login and logout", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  const email = "new@example.test";
+  const password = "AReallyLongTestPassword!2026";
+  const registration = await worker.fetch(authRequest("/api/auth/register", { name: "Новий покупець", email, password }), env);
+  assert.equal(registration.status, 201);
+  assert.equal(env.EMAIL.messages.length, 1);
+  const row = sqlite.prepare("SELECT * FROM customers WHERE email = ?").get(email);
+  assert.ok(row.password_hash);
+  assert.equal(row.email_verified_at, null);
+  const beforeVerify = await worker.fetch(authRequest("/api/auth/login", { email, password }), env);
+  assert.equal(beforeVerify.status, 403);
+  const token = /#verify=([a-f0-9]{64})/.exec(env.EMAIL.messages[0].text)[1];
+  const verify = await worker.fetch(authRequest("/api/auth/verify", { token }), env);
+  assert.equal(verify.status, 200);
+  const reused = await worker.fetch(authRequest("/api/auth/verify", { token }), env);
+  assert.equal(reused.status, 400);
+  const wrongPassword = await worker.fetch(authRequest("/api/auth/login", { email, password: "wrongpassword!!!!" }), env);
+  assert.equal(wrongPassword.status, 401);
+  const login = await worker.fetch(authRequest("/api/auth/login", { email, password }), env);
+  assert.equal(login.status, 200);
+  assert.match(login.headers.get("Set-Cookie"), /HttpOnly; Secure; SameSite=Lax/);
+  const cookie = login.headers.get("Set-Cookie").split(";")[0];
+  const me = await worker.fetch(new Request("https://test.invalid/api/auth/me", { headers: { Cookie: cookie } }), env);
+  assert.equal((await me.json()).user.email, email);
+  const logout = await worker.fetch(authRequest("/api/auth/logout", {}, cookie), env);
+  assert.equal(logout.status, 200);
+  const after = await worker.fetch(new Request("https://test.invalid/api/auth/me", { headers: { Cookie: cookie } }), env);
+  assert.equal((await after.json()).authenticated, false);
+});
+
+test("Telegram login verifies HMAC and rejects altered, stale or unsigned data", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  const payload = { id: 123456, first_name: "Танукі", auth_date: Math.floor(Date.now() / 1000) };
+  const content = Object.keys(payload).sort().map(key => `${key}=${payload[key]}`).join("\n");
+  const signatureKey = createHash("sha256").update(env.TELEGRAM_BOT_TOKEN).digest();
+  payload.hash = createHmac("sha256", signatureKey).update(content).digest("hex");
+  const response = await worker.fetch(authRequest("/api/auth/telegram", payload), env);
+  assert.equal(response.status, 200);
+  assert.equal(sqlite.prepare("SELECT telegram_id FROM customers WHERE telegram_id = ?").get("123456").telegram_id, "123456");
+  const tampered = await worker.fetch(authRequest("/api/auth/telegram", { ...payload, first_name: "Зловмисник" }), env);
+  assert.equal(tampered.status, 401);
+  const unsigned = await worker.fetch(authRequest("/api/auth/telegram", { ...payload, hash: "0".repeat(64) }), env);
+  assert.equal(unsigned.status, 401);
+  const stale = await worker.fetch(authRequest("/api/auth/telegram", { ...payload, auth_date: 1 }), env);
+  assert.equal(stale.status, 401);
+});
+
+test("account order history is private and linked to the correct customer", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB);
+  await worker.fetch(orderRequest(), env);
+  const guest = await worker.fetch(new Request("https://test.invalid/api/account/orders"), env);
+  assert.equal(guest.status, 401);
+  const authorized = await worker.fetch(new Request("https://test.invalid/api/account/orders", {
+    headers: { Cookie: `__Host-tanuki_customer=${TEST_TOKEN}` }
+  }), env);
+  const data = await authorized.json();
+  assert.equal(authorized.status, 200);
+  assert.equal(data.orders.length, 1);
+  assert.equal(data.orders[0].items[0].quantity, 2);
+  sqlite.prepare(`INSERT INTO customers(id, telegram_id, display_name) VALUES (2, '777', 'Інший')`).run();
+  const otherToken = "b".repeat(64);
+  sqlite.prepare(`INSERT INTO customer_sessions(token_hash, customer_id, expires_at)
+    VALUES (?, 2, datetime('now', '+7 days'))`).run(createHash("sha256").update(otherToken).digest("hex"));
+  const other = await worker.fetch(new Request("https://test.invalid/api/account/orders", {
+    headers: { Cookie: `__Host-tanuki_customer=${otherToken}` }
+  }), env);
+  assert.equal((await other.json()).orders.length, 0);
+});
+
+test("customer authentication is rate limited and email setup is fail-closed", async t => {
+  const { sqlite, DB } = createTestDatabase();
+  t.after(() => sqlite.close());
+  const env = createEnv(DB, false);
+  const throttled = await worker.fetch(authRequest("/api/auth/register", {
+    email: "example@example.test", password: "LongEnoughPassword1!"
+  }), env);
+  assert.equal(throttled.status, 429);
+  env.CUSTOMER_AUTH_LIMITER = { async limit() { return { success: true }; } };
+  delete env.EMAIL;
+  const missingEmail = await worker.fetch(authRequest("/api/auth/register", {
+    email: "example@example.test", password: "LongEnoughPassword1!"
+  }), env);
+  assert.equal(missingEmail.status, 503);
+  assert.equal(sqlite.prepare("SELECT COUNT(*) AS n FROM customers").get().n, 1);
+  const crossOrigin = await worker.fetch(new Request("https://test.invalid/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Origin: "https://another.invalid" },
+    body: JSON.stringify({ email: "buyer@example.test", password: "guess" })
+  }), env);
+  assert.equal(crossOrigin.status, 403);
 });

@@ -7,6 +7,8 @@
   <meta name="description" content="Tanuki Shop — kawaii та anime товари, аксесуари, плюшеві іграшки та подарунки.">
   <title>Tanuki Shop — Kawaii & Anime Store</title>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/auth.css">
+  <script src="/auth.js" defer></script>
 
   <style>
     .product-image {
@@ -183,6 +185,7 @@
       <a href="#new">Категорії</a>
       <a href="#about">Про нас</a>
     </nav>
+    <button class="account-button" id="accountButton" type="button">👤 Увійти</button>
     <button class="cart-button" id="cartButton" type="button">
       🛒 Кошик <span id="cartCount">0</span>
     </button>
@@ -330,6 +333,56 @@
       <button id="checkoutButton" class="checkout-button" type="button">📦 Оформити замовлення</button>
     </div>
   </div>
+</div>
+
+<!-- КАБІНЕТ ПОКУПЦЯ -->
+<div class="account-modal" id="accountModal" hidden>
+  <div class="account-overlay" id="accountOverlay"></div>
+  <section class="account-window" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+    <div class="account-header">
+      <h2 id="accountTitle">👤 Мій Tanuki Shop</h2>
+      <button type="button" id="closeAccount" aria-label="Закрити кабінет">✕</button>
+    </div>
+    <div class="account-content">
+      <p id="accountMessage" class="account-message" role="status" aria-live="polite"></p>
+      <div id="accountGuest">
+        <div class="account-tabs">
+          <button type="button" id="showLogin" class="selected">Увійти</button>
+          <button type="button" id="showRegister">Реєстрація</button>
+        </div>
+        <form id="loginForm" class="account-form">
+          <label>Email<input id="loginEmail" type="email" autocomplete="email" required maxlength="254"></label>
+          <label>Пароль<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+          <button type="submit" class="account-primary">Увійти</button>
+        </form>
+        <form id="registerForm" class="account-form" hidden>
+          <label>Ім'я<input id="registerName" type="text" autocomplete="name" maxlength="100"></label>
+          <label>Email<input id="registerEmail" type="email" autocomplete="email" required maxlength="254"></label>
+          <label>Пароль (від 12 символів)<input id="registerPassword" type="password" autocomplete="new-password" required minlength="12" maxlength="128"></label>
+          <button type="submit" class="account-primary">Створити акаунт</button>
+        </form>
+        <form id="resendForm" class="account-form account-resend">
+          <label>Не отримали лист?<input id="resendEmail" type="email" placeholder="Ваша email-адреса" maxlength="254" required></label>
+          <button type="submit">Повторно надіслати підтвердження</button>
+        </form>
+        <div class="account-telegram">
+          <span>або увійдіть через Telegram</span>
+          <div id="telegramLogin"></div>
+        </div>
+      </div>
+      <div id="accountUser" hidden>
+        <h3 id="accountWelcome"></h3>
+        <p id="accountEmail"></p>
+        <div id="telegramConnect" class="account-telegram" hidden>
+          <p>Прив'язати Telegram до акаунта:</p>
+          <div id="telegramConnectWidget"></div>
+        </div>
+        <h3>📦 Мої замовлення</h3>
+        <div id="accountOrders"></div>
+        <button type="button" id="logoutAccount">Вийти з акаунта</button>
+      </div>
+    </div>
+  </section>
 </div>
 
 <!-- ОФОРМЛЕННЯ ЗАМОВЛЕННЯ -->
@@ -814,11 +867,12 @@
   function openCart() { cartModal.classList.add("active"); }
   function closeCart() { cartModal.classList.remove("active"); }
 
-  function openCheckout() {
+  async function openCheckout() {
     if (!cart.length) {
       alert("Спочатку додайте товари до кошика.");
       return;
     }
+    if (!window.tanukiAuth || !(await window.tanukiAuth.requireLogin())) return;
     closeCart();
     $("checkoutTotal").textContent = formatPrice(getTotal());
     checkoutModal.classList.add("active");
@@ -959,6 +1013,11 @@
       });
 
       const result = await response.json().catch(() => ({}));
+
+      if (response.status === 401) {
+        window.tanukiAuth?.open();
+        throw new Error("Сесія закінчилася. Увійдіть повторно, кошик збережеться.");
+      }
 
       if (!response.ok || result.ok === false) {
         throw new Error(result.error || "Не вдалося оформити замовлення.");
