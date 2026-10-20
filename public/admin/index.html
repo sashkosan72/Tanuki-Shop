@@ -458,8 +458,8 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
             <button id="replyButton" type="submit">Надіслати відповідь</button>
             <button id="closeChatButton" class="danger" type="button">Закрити звернення</button>
           </div>
-          <p id="supportMessage" role="status"></p>
         </form>
+        <p id="supportMessage" role="status" aria-live="polite"></p>
       </div>
     </div>
   </section>
@@ -510,6 +510,11 @@ const orderSearch = $("orderSearch");
 const orderStatusFilter = $("orderStatusFilter");
 
 let selectedChatId = null;
+let supportViewVersion = 0;
+let supportListRequestId = 0;
+let supportActionVersion = 0;
+let readySupportChatId = null;
+let activeSupportAction = null;
 let allOrders = [];
 let adminProducts = [];
 let selectedProductId = null;
@@ -557,6 +562,7 @@ async function api(path,options={}){
 }
 
 function showLogin(){
+  resetSupportChat();
   dashboard.classList.add("hidden");
   loginPanel.classList.remove("hidden");
 }
@@ -1104,9 +1110,41 @@ document.addEventListener("keydown",event=>{
 
 /* -------------------- ПІДТРИМКА -------------------- */
 
+function setSupportActionsDisabled(disabled){
+  replyButton.disabled=disabled;
+  closeChatButton.disabled=disabled;
+  replyText.disabled=disabled;
+}
+
+function isCurrentSupportView(version,chatId){
+  return supportViewVersion===version&&selectedChatId===chatId;
+}
+
+function isCurrentSupportAction(action){
+  return activeSupportAction===action&&isCurrentSupportView(action.version,action.chatId);
+}
+
+function resetSupportChat(){
+  supportViewVersion++;
+  supportListRequestId++;
+  selectedChatId=null;
+  readySupportChatId=null;
+  activeSupportAction=null;
+  setSupportActionsDisabled(true);
+  replyButton.textContent="Надіслати відповідь";
+  replyForm.classList.add("hidden");
+  replyText.value="";
+  chatHeading.textContent="Оберіть звернення зі списку.";
+  messagesBox.innerHTML='<div class="empty">Тут відображатиметься листування.</div>';
+  supportMessage.textContent="";
+}
+
 async function loadSupportChats(){
+  const requestId=++supportListRequestId;
+  const version=supportViewVersion;
   try{
     const data=await api("/api/admin/support");
+    if(requestId!==supportListRequestId||version!==supportViewVersion)return;
     const chats=data.chats||[];
 
     if(!chats.length){
@@ -1134,19 +1172,34 @@ async function loadSupportChats(){
       `;
     }).join("");
   }catch(error){
+    if(requestId!==supportListRequestId||version!==supportViewVersion)return;
     chatList.innerHTML='<div class="panel empty">Не вдалося завантажити звернення.</div>';
     dashboardError.textContent=error.message;
   }
 }
 
 async function openSupportChat(chatId){
-  selectedChatId=Number(chatId);
+  const requestedChatId=Number(chatId);
+  if(!Number.isSafeInteger(requestedChatId)||requestedChatId<=0)return false;
+  const version=++supportViewVersion;
+  selectedChatId=requestedChatId;
+  readySupportChatId=null;
+  activeSupportAction=null;
+  setSupportActionsDisabled(true);
+  replyButton.textContent="Надіслати відповідь";
+  replyForm.classList.add("hidden");
+  replyText.value="";
+  chatHeading.textContent="Завантаження звернення…";
   supportMessage.textContent="";
   messagesBox.innerHTML='<div class="empty">Завантаження листування…</div>';
 
   try{
-    const data=await api("/api/admin/support/"+selectedChatId);
+    const data=await api("/api/admin/support/"+requestedChatId);
+    if(!isCurrentSupportView(version,requestedChatId))return false;
     const chat=data.chat;
+    if(!chat||Number(chat.id)!==requestedChatId){
+      throw new Error("Отримано інше звернення. Виберіть чат ще раз.");
+    }
     const messages=data.messages||[];
 
     const lastMessage=messages.length?messages[messages.length-1]:null;
@@ -1177,12 +1230,20 @@ async function openSupportChat(chatId){
     }
 
     replyForm.classList.toggle("hidden",chat.status!=="open");
-    replyText.value="";
+    readySupportChatId=chat.status==="open"?requestedChatId:null;
+    setSupportActionsDisabled(readySupportChatId===null);
     messagesBox.scrollTop=messagesBox.scrollHeight;
     await loadSupportChats();
+    return isCurrentSupportView(version,requestedChatId);
   }catch(error){
+    if(!isCurrentSupportView(version,requestedChatId))return false;
+    readySupportChatId=null;
+    setSupportActionsDisabled(true);
+    replyForm.classList.add("hidden");
     messagesBox.innerHTML='<div class="empty">Не вдалося завантажити листування.</div>';
+    supportMessage.className="error";
     supportMessage.textContent=error.message;
+    return false;
   }
 }
 
@@ -1193,55 +1254,75 @@ chatList.addEventListener("click",event=>{
 
 replyForm.addEventListener("submit",async event=>{
   event.preventDefault();
-  if(!selectedChatId)return;
+  if(readySupportChatId!==selectedChatId||!readySupportChatId||activeSupportAction)return;
 
   const message=replyText.value.trim();
   if(!message)return;
 
-  replyButton.disabled=true;
+  const action={chatId:readySupportChatId,version:supportViewVersion,sequence:++supportActionVersion};
+  activeSupportAction=action;
+  setSupportActionsDisabled(true);
   replyButton.textContent="Надсилання…";
   supportMessage.textContent="";
 
   try{
-    await api("/api/admin/support/"+selectedChatId+"/reply",{
+    await api("/api/admin/support/"+action.chatId+"/reply",{
       method:"POST",
       body:JSON.stringify({message})
     });
 
-    replyText.value="";
-    supportMessage.className="success";
-    supportMessage.textContent="Відповідь надіслана покупцеві.";
-    await openSupportChat(selectedChatId);
+    if(!isCurrentSupportAction(action))return;
+    const refresh=openSupportChat(action.chatId);
+    const refreshedVersion=supportViewVersion;
+    const refreshed=await refresh;
+    if(refreshed&&isCurrentSupportView(refreshedVersion,action.chatId)&&supportActionVersion===action.sequence){
+      supportMessage.className="success";
+      supportMessage.textContent="Відповідь надіслана покупцеві.";
+    }
   }catch(error){
+    if(!isCurrentSupportAction(action))return;
     supportMessage.className="error";
     supportMessage.textContent=error.message;
   }finally{
-    replyButton.disabled=false;
-    replyButton.textContent="Надіслати відповідь";
+    if(isCurrentSupportAction(action)){
+      activeSupportAction=null;
+      setSupportActionsDisabled(readySupportChatId!==action.chatId);
+      replyButton.textContent="Надіслати відповідь";
+    }
   }
 });
 
 closeChatButton.addEventListener("click",async()=>{
-  if(!selectedChatId)return;
+  if(readySupportChatId!==selectedChatId||!readySupportChatId||activeSupportAction)return;
   if(!confirm("Закрити це звернення?"))return;
 
-  closeChatButton.disabled=true;
+  const action={chatId:readySupportChatId,version:supportViewVersion,sequence:++supportActionVersion};
+  activeSupportAction=action;
+  setSupportActionsDisabled(true);
 
   try{
-    await api("/api/admin/support/"+selectedChatId+"/close",{
+    await api("/api/admin/support/"+action.chatId+"/close",{
       method:"PATCH",
       body:"{}"
     });
 
-    await openSupportChat(selectedChatId);
-    await loadSupportChats();
-    supportMessage.className="success";
-    supportMessage.textContent="Звернення закрито.";
+    if(!isCurrentSupportAction(action))return;
+    const refresh=openSupportChat(action.chatId);
+    const refreshedVersion=supportViewVersion;
+    const refreshed=await refresh;
+    if(refreshed&&isCurrentSupportView(refreshedVersion,action.chatId)&&supportActionVersion===action.sequence){
+      supportMessage.className="success";
+      supportMessage.textContent="Звернення закрито.";
+    }
   }catch(error){
+    if(!isCurrentSupportAction(action))return;
     supportMessage.className="error";
     supportMessage.textContent=error.message;
   }finally{
-    closeChatButton.disabled=false;
+    if(isCurrentSupportAction(action)){
+      activeSupportAction=null;
+      setSupportActionsDisabled(readySupportChatId!==action.chatId);
+    }
   }
 });
 
@@ -1308,11 +1389,11 @@ $("refreshButton").addEventListener("click",async()=>{
 });
 
 $("logoutButton").addEventListener("click",async()=>{
+  resetSupportChat();
   try{
     await api("/api/admin/logout",{method:"POST",body:"{}"});
   }catch{}
 
-  selectedChatId=null;
   showLogin();
 });
 
