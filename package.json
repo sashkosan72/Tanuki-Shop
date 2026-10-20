@@ -1,0 +1,13 @@
+{
+  "name": "tanuki-shop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test --test-isolation=none",
+    "check": "node --check src/index.js && node --check src/customer-auth.js && node --check public/auth.js && node --test --test-isolation=none",
+    "deploy:check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "^4.151.3"
+  }
+}
