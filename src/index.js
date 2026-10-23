@@ -1,3 +1,4 @@
+import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
 const TELEGRAM_BOT_USERNAME = "TanukiShopNotifyBot";
 
@@ -975,6 +976,12 @@ async function handleBuyerMessage(env, message) {
 
   if (text.startsWith("/start")) {
     const payload = text.split(/\s+/, 2)[1] || "";
+
+    if (payload.startsWith("acc_")) {
+      const confirmation = await confirmAccountFromTelegram(env, telegramUser, payload.slice(4));
+      await sendBuyerMessage(env, chatId, confirmation);
+      return;
+    }
 
     if (payload) {
       await linkTelegramOrder(
@@ -2644,6 +2651,11 @@ export default {
     const method = request.method.toUpperCase();
 
     try {
+      /* ---------- CUSTOMER ACCOUNT ROUTES (opt-in preview feature) ---------- */
+      if (path.startsWith("/api/customer/")) {
+        return handleCustomerRoute(request, env);
+      }
+
       /* ---------- HEALTH ---------- */
 
       if (path === "/api/health" && method === "GET") {
