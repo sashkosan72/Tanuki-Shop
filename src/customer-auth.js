@@ -50,15 +50,28 @@ async function register(req,env){
   const body=await input(req),email=emailValue(body?.email),name=typeof body?.name==="string"?body.name.trim():"";
   if(!email||name.length<2||name.length>70||!validPass(body?.password))
     return err("Вкажіть ім'я, коректний email та пароль від 10 до 128 символів.");
-  if(await env.DB.prepare("SELECT id FROM customer_accounts WHERE email=?").bind(email).first())
-    return err("Цей email уже використовується. Увійдіть або відновіть доступ.",409);
-  const salt=random(16),digest=await hashPassword(body.password,salt),token=random(24),tokenHash=await sha(token);
-  try {
-    await env.DB.prepare("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,pending_token_hash,pending_expires_at) VALUES(?,?,?,?,?,?,datetime('now','+30 minutes'))")
-      .bind(name,email,salt,digest,ITERS,tokenHash).run();
-  }catch(e){
-    if(String(e).includes("UNIQUE"))return err("Цей email уже використовується.",409);
-    throw e;
+  // Allow safe re-issuance of an expired Telegram confirmation for an unverified account.
+  // Require proof of the original password before replacing a pending token.
+  const existing=await env.DB.prepare("SELECT id,verified_at,password_salt,password_hash,password_iterations FROM customer_accounts WHERE email=?")
+    .bind(email).first();
+  if(existing?.verified_at)return err("Цей email уже використовується. Увійдіть або відновіть доступ.",409);
+  const token=random(24),tokenHash=await sha(token);
+  if(existing){
+    const iters=Number(existing.password_iterations);
+    if(iters<100000||iters>1000000)return err("Не вдалося оновити підтвердження.",400);
+    const derived=await hashPassword(body.password,existing.password_salt,iters);
+    if(!equal(derived,existing.password_hash))return err("Цей email уже використовується. Перевірте пароль.",409);
+    await env.DB.prepare("UPDATE customer_accounts SET pending_token_hash=?,pending_expires_at=datetime('now','+30 minutes') WHERE id=? AND verified_at IS NULL")
+      .bind(tokenHash,existing.id).run();
+  }else{
+    const salt=random(16),digest=await hashPassword(body.password,salt);
+    try {
+      await env.DB.prepare("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,pending_token_hash,pending_expires_at) VALUES(?,?,?,?,?,?,datetime('now','+30 minutes'))")
+        .bind(name,email,salt,digest,ITERS,tokenHash).run();
+    }catch(e){
+      if(String(e).includes("UNIQUE"))return err("Цей email уже використовується.",409);
+      throw e;
+    }
   }
   return ok({ok:true,verificationRequired:true,message:"Підтвердіть акаунт у Telegram протягом 30 хвилин.",
     telegramUrl:"https://t.me/"+BOT+"?start=acc_"+token},201);
