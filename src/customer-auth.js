@@ -1,15 +1,15 @@
-import {derivePassword} from './password.js';
+import {derivePassword, PASSWORD_ITERATIONS, isCurrentPassword} from './password.js';
 /* Tanuki Shop customer accounts. Requires preview D1 migration. Disabled by default. */
 import {telegramBotUsername, telegramReady, siteOrigin} from './environment.js';
-const COOKIE="__Host-tanuki_customer",ITERS=180000,ENC=new TextEncoder();
+const COOKIE="__Host-tanuki_customer",ITERS=PASSWORD_ITERATIONS,ENC=new TextEncoder();
 const ok=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...headers}});
 const err=(message,status=400)=>ok({ok:false,error:message},status);
 const hex=b=>Array.from(b,n=>n.toString(16).padStart(2,"0")).join("");
 const random=(n=32)=>hex(crypto.getRandomValues(new Uint8Array(n)));
 const sha=async text=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",ENC.encode(text))));
 const unhex=h=>new Uint8Array((h.match(/../g)||[]).map(x=>parseInt(x,16)));
-async function hashPassword(password,salt,iterations=ITERS) {
-  return hex(await derivePassword(password,unhex(salt),iterations));
+async function hashPassword(password,salt,env,iterations=ITERS) {
+  return derivePassword(password,unhex(salt),iterations,env.CUSTOMER_PASSWORD_PEPPER);
 }
 function equal(a,b){if(typeof a!=="string"||typeof b!=="string"||a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}
 function getCookie(request){
@@ -63,14 +63,15 @@ async function register(req,env){
   if(existing?.verified_at)return err("Цей email уже використовується. Увійдіть або відновіть доступ.",409);
   const token=random(24),tokenHash=await sha(token);
   if(existing){
+    if(!isCurrentPassword(existing.password_hash))return err("Для старого тестового акаунта підтвердіть Telegram за попереднім посиланням і скористайтеся відновленням пароля.",409);
     const iters=Number(existing.password_iterations);
     if(iters<100000||iters>1000000)return err("Не вдалося оновити підтвердження.",400);
-    const derived=await hashPassword(body.password,existing.password_salt,iters);
+    const derived=await hashPassword(body.password,existing.password_salt,env,iters);
     if(!equal(derived,existing.password_hash))return err("Цей email уже використовується. Перевірте пароль.",409);
     await env.DB.prepare("UPDATE customer_accounts SET pending_token_hash=?,pending_expires_at=datetime('now','+30 minutes') WHERE id=? AND verified_at IS NULL")
       .bind(tokenHash,existing.id).run();
   }else{
-    const salt=random(16),digest=await hashPassword(body.password,salt);
+    const salt=random(16),digest=await hashPassword(body.password,salt,env);
     try {
       await env.DB.prepare("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,pending_token_hash,pending_expires_at) VALUES(?,?,?,?,?,?,datetime('now','+30 minutes'))")
         .bind(name,email,salt,digest,ITERS,tokenHash).run();
@@ -89,9 +90,10 @@ async function login(req,env){
   const row=await env.DB.prepare("SELECT * FROM customer_accounts WHERE email=?").bind(email).first();
   if(row?.locked_until&&Date.parse(row.locked_until.replace(" ","T")+"Z")>Date.now())
     return err("Вхід тимчасово заблоковано. Спробуйте через 15 хвилин.",429);
+  if(row&&!isCurrentPassword(row.password_hash))return err("Оновлено захист паролів. Скористайтеся «Забули пароль», щоб відновити доступ через Telegram.",409);
   const iters=Number(row?.password_iterations||ITERS);
   if(iters<100000||iters>1000000)throw new Error("Invalid password hashing configuration");
-  const digest=await hashPassword(pass,row?.password_salt||"9b12cdbb5fa32411cfe26f397fed6598",iters);
+  const digest=await hashPassword(pass,row?.password_salt||"9b12cdbb5fa32411cfe26f397fed6598",env,iters);
   if(!row||!equal(digest,row.password_hash)){
     if(row)await env.DB.prepare("UPDATE customer_accounts SET failed_logins=failed_logins+1,locked_until=CASE WHEN failed_logins>=7 THEN datetime('now','+15 minutes') ELSE locked_until END WHERE id=?").bind(row.id).run();
     return err("Невірний email або пароль.",401);
@@ -135,7 +137,7 @@ async function reset(req,env){
     return err("Невірне посилання або пароль коротший за 10 символів.");
   const row=await env.DB.prepare("SELECT id,customer_id FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>datetime('now') LIMIT 1").bind(await sha(body.token)).first();
   if(!row)return err("Посилання недійсне або термін його дії минув.");
-  const salt=random(16),digest=await hashPassword(body.password,salt);
+  const salt=random(16),digest=await hashPassword(body.password,salt,env);
   // Claim with a unique marker; a reused token cannot change a password.
   const claim=random(16);
   const result=await env.DB.batch([

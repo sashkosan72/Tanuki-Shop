@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import {createHash} from 'node:crypto';
 const origin='https://tanuki-shop-preview-pr6.sashh4051.workers.dev',messages=[];
 let deliveryOK=true,checks=0;
-const mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'dist-preview/index.js',compatibilityDate:'2026-10-11',d1Databases:['DB'],bindings:{ENVIRONMENT:'preview',SITE_ORIGIN:origin,CUSTOMER_AUTH_ENABLED:'true',TELEGRAM_BOT_USERNAME:'TanukiQATestBot',TELEGRAM_BOT_TOKEN:'local-test-token',TELEGRAM_WEBHOOK_SECRET:'local-test-webhook'},outboundService:async request=>{assert.equal(new URL(request.url).hostname,'api.telegram.org');messages.push(await request.json());return new Response(JSON.stringify({ok:deliveryOK,result:{message_id:1}}),{status:deliveryOK?200:503,headers:{'Content-Type':'application/json'}});}}));
+const mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'dist-preview/index.js',compatibilityDate:'2026-10-11',d1Databases:['DB'],bindings:{ENVIRONMENT:'preview',CUSTOMER_PASSWORD_PEPPER:'ab'.repeat(32),SITE_ORIGIN:origin,CUSTOMER_AUTH_ENABLED:'true',TELEGRAM_BOT_USERNAME:'TanukiQATestBot',TELEGRAM_BOT_TOKEN:'local-test-token',TELEGRAM_WEBHOOK_SECRET:'local-test-webhook'},outboundService:async request=>{assert.equal(new URL(request.url).hostname,'api.telegram.org');messages.push(await request.json());return new Response(JSON.stringify({ok:deliveryOK,result:{message_id:1}}),{status:deliveryOK?200:503,headers:{'Content-Type':'application/json'}});}}));
 const db=await mf.getD1Database('DB');
 async function sql(s){return db.prepare(s).run();}
 async function call(path,body,expected=200,headers={}){const r=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','Origin':origin,'X-Tanuki-Request':'1',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const d=await r.json();assert.equal(r.status,expected,`${path}: ${JSON.stringify(d)}`);checks++;return {r,d};}
@@ -29,6 +29,8 @@ await call('/api/customer/register',data,409);
 await call('/api/customer/login',{...data,password:'wrong-password'},401);
 let login=await call('/api/customer/login',data);let cookie=login.r.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);cookie=cookie.split(';')[0];checks++;
 await call('/api/customer/me',undefined,200,{Cookie:cookie});let wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,0);checks++;
+await sql("UPDATE customer_accounts SET password_hash='"+'ab'.repeat(32)+"',password_iterations=180000 WHERE id=1");
+await call('/api/customer/login',data,409);
 await call('/api/customer/forgot',{email:data.email});const reset=new URL(messages.at(-1).text.match(/https:\/\/[^\s]+/)[0]).searchParams.get('reset');
 const sibling='a'.repeat(64);await db.prepare("INSERT INTO customer_password_resets(customer_id,token_hash,expires_at) VALUES(1,?,datetime('now','+20 minutes'))").bind(createHash('sha256').update(sibling).digest('hex')).run();
 await call('/api/customer/reset',{token:reset,password:'new-password-2026'});
