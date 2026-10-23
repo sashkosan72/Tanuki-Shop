@@ -1,3 +1,4 @@
+import {derivePassword} from './password.js';
 /* Tanuki Shop customer accounts. Requires preview D1 migration. Disabled by default. */
 import {telegramBotUsername, telegramReady, siteOrigin} from './environment.js';
 const COOKIE="__Host-tanuki_customer",ITERS=180000,ENC=new TextEncoder();
@@ -8,8 +9,7 @@ const random=(n=32)=>hex(crypto.getRandomValues(new Uint8Array(n)));
 const sha=async text=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",ENC.encode(text))));
 const unhex=h=>new Uint8Array((h.match(/../g)||[]).map(x=>parseInt(x,16)));
 async function hashPassword(password,salt,iterations=ITERS) {
-  const key=await crypto.subtle.importKey("raw",ENC.encode(password),"PBKDF2",false,["deriveBits"]);
-  return hex(new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",salt:unhex(salt),iterations,hash:"SHA-256"},key,256)));
+  return hex(await derivePassword(password,unhex(salt),iterations));
 }
 function equal(a,b){if(typeof a!=="string"||typeof b!=="string"||a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}
 function getCookie(request){

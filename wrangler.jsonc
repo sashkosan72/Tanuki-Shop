@@ -35,6 +35,7 @@
       "routes": [],
       "vars": {
         "ENVIRONMENT": "preview",
+        "TELEGRAM_BOT_USERNAME": "TanukiShopPreviewBot",
         "SITE_ORIGIN": "https://tanuki-shop-preview-pr6.sashh4051.workers.dev",
         "CUSTOMER_AUTH_ENABLED": "true"
       },
