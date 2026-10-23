@@ -1251,3 +1251,72 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+/* Storefront navigation, upcoming features, animation — Tanuki Shop */
+.header-actions { display:flex; align-items:center; gap:10px; }
+.mobile-menu-button {
+  display:none;
+  place-items:center;
+  width:44px;height:44px;
+  border:1px solid #ebcde6;border-radius:13px;
+  background:#fff4fc;color:#673381;
+  font-size:25px;line-height:1;
+}
+.mobile-menu-button:focus-visible,
+.main-nav a:focus-visible {outline:3px solid #ab57d1; outline-offset:3px;}
+.main-nav {gap:clamp(11px, 1.75vw, 25px);}
+.main-nav a {white-space:nowrap;}
+.member-benefits {padding:70px 0;background:linear-gradient(180deg,#fffafd,#f9f2ff);}
+.member-benefits-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:20px;}
+.member-benefit {
+  position:relative;min-width:0;padding:28px 24px;
+  border:1px solid #e7d4f1;border-radius:22px;
+  background:#fff;box-shadow:0 8px 27px #9d76ae12;
+  transition:transform .25s ease, box-shadow .25s ease;
+}
+.member-benefit:hover {transform:translateY(-3px);box-shadow:0 13px 35px #80619925;}
+.member-benefit-icon {display:block;margin-bottom:15px;font-size:35px;}
+.member-benefit-state {
+  position:absolute;top:25px;right:20px;padding:6px 11px;
+  border-radius:999px;background:#f3e8ff;color:#7843a6;
+  font-size:11px;font-weight:900;
+}
+.member-benefit h3 {margin:10px 0;color:#513369;font-size:21px;}
+.member-benefit p {margin:0;color:#786a82;line-height:1.65;font-size:14px;}
+.product-card.catalog-reveal-pending {opacity:0;transform:translateY(18px) scale(.985);}
+.product-card.catalog-reveal-visible {
+  opacity:1;transform:translateY(0) scale(1);
+  transition:opacity .48s ease,transform .48s cubic-bezier(.21,.8,.34,1);
+}
+@media(max-width:940px) {
+  .header-inner {position:relative;gap:12px;}
+  .mobile-menu-button {display:grid;}
+  .main-nav {
+    position:absolute;display:none;z-index:150;
+    top:calc(100% - 2px);right:0;width:min(310px, calc(100vw - 28px));
+    padding:12px;flex-direction:column;align-items:stretch;
+    gap:3px;border:1px solid #eed2ef;border-radius:0 0 20px 20px;
+    background:#fffaff;box-shadow:0 16px 32px #3d22501c;
+  }
+  .main-nav.is-open {display:flex;}
+  .main-nav a {padding:12px 14px;border-radius:12px;font-size:15px;}
+  .main-nav a:hover,.main-nav a:focus-visible {background:#f5eafb;}
+}
+@media(max-width:760px) {
+  .member-benefits-grid {grid-template-columns:1fr;gap:12px;}
+  .member-benefits {padding:50px 0;}
+  .member-benefit {padding:22px;}
+}
+@media(max-width:560px) {
+  .header-actions {gap:6px;}
+  .logo {white-space:nowrap;}
+  .mobile-menu-button {width:40px;height:40px;}
+  .main-nav.is-open {display:flex;}
+}
+@media(prefers-reduced-motion:reduce) {
+  .product-card.catalog-reveal-pending {opacity:1;transform:none;}
+  .product-card.catalog-reveal-visible {transition:none;}
+  .member-benefit {transition:none;}
+}
+
