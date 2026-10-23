@@ -113,10 +113,12 @@ async function reset(req,env){
   const row=await env.DB.prepare("SELECT id,customer_id FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>datetime('now') LIMIT 1").bind(await sha(body.token)).first();
   if(!row)return err("Посилання недійсне або термін його дії минув.");
   const salt=random(16),digest=await hashPassword(body.password,salt);
+  // Claim with a unique marker; a reused token cannot change a password.
+  const claim=random(16);
   const result=await env.DB.batch([
-    env.DB.prepare("UPDATE customer_password_resets SET used_at=CURRENT_TIMESTAMP WHERE id=? AND used_at IS NULL AND expires_at>datetime('now')").bind(row.id),
-    env.DB.prepare("UPDATE customer_accounts SET password_salt=?,password_hash=?,password_iterations=?,failed_logins=0,locked_until=NULL WHERE id=?").bind(salt,digest,ITERS,row.customer_id),
-    env.DB.prepare("DELETE FROM customer_sessions WHERE customer_id=?").bind(row.customer_id)
+    env.DB.prepare("UPDATE customer_password_resets SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>datetime('now')").bind(claim,row.id),
+    env.DB.prepare("UPDATE customer_accounts SET password_salt=?,password_hash=?,password_iterations=?,failed_logins=0,locked_until=NULL WHERE id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(salt,digest,ITERS,row.customer_id,row.id,claim),
+    env.DB.prepare("DELETE FROM customer_sessions WHERE customer_id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(row.customer_id,row.id,claim)
   ]);
   if(!result[0]?.meta?.changes)return err("Посилання вже використано.");
   return ok({ok:true,message:"Пароль змінено. Увійдіть із новим паролем."});
