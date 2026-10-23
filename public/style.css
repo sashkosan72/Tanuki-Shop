@@ -1320,3 +1320,10 @@ button:disabled {
   .member-benefit {transition:none;}
 }
 
+/* Keep the header on one line on narrow phones. */
+@media(max-width:360px) {
+  .header-inner {gap:6px;}
+  .logo {font-size:16px;}
+  .cart-button {white-space:nowrap;padding:9px 10px;font-size:12px;}
+  .header-actions {gap:5px;}
+}

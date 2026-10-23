@@ -1,5 +1,6 @@
 /* Tanuki Shop customer accounts. Requires preview D1 migration. Disabled by default. */
-const BOT="TanukiShopNotifyBot",COOKIE="__Host-tanuki_customer",ITERS=180000,ENC=new TextEncoder();
+import {telegramBotUsername, telegramReady, siteOrigin} from './environment.js';
+const COOKIE="__Host-tanuki_customer",ITERS=180000,ENC=new TextEncoder();
 const ok=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...headers}});
 const err=(message,status=400)=>ok({ok:false,error:message},status);
 const hex=b=>Array.from(b,n=>n.toString(16).padStart(2,"0")).join("");
@@ -22,7 +23,11 @@ const setCookie=(value,age=604800)=>[COOKIE+"="+value,"Path=/","Secure","HttpOnl
 function allowed(request){return request.headers.get("Origin")===new URL(request.url).origin&&request.headers.get("X-Tanuki-Request")==="1";}
 async function input(request){
   if(!request.headers.get("Content-Type")?.startsWith("application/json"))return null;
-  const text=await request.text();if(text.length>5000)return null;
+  if(!request.body)return null;
+  const reader=request.body.getReader(),chunks=[];let size=0;
+  while(true){const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>5000){await reader.cancel();return null;}chunks.push(value);}
+  const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+  const text=new TextDecoder().decode(bytes);
   try{const val=JSON.parse(text);return val&&!Array.isArray(val)&&typeof val==="object"?val:null;}catch{return null;}
 }
 function emailValue(x){
@@ -46,6 +51,7 @@ async function currentUser(req,env){
     .bind(await sha(token)).first();
 }
 async function register(req,env){
+  if(!telegramReady(env))return err("Підтвердження через Telegram ще не налаштоване. Спробуйте пізніше.",503);
   if(!await rate(env,req,"register",8,3600))return err("Забагато спроб. Спробуйте пізніше.",429);
   const body=await input(req),email=emailValue(body?.email),name=typeof body?.name==="string"?body.name.trim():"";
   if(!email||name.length<2||name.length>70||!validPass(body?.password))
@@ -74,7 +80,7 @@ async function register(req,env){
     }
   }
   return ok({ok:true,verificationRequired:true,message:"Підтвердіть акаунт у Telegram протягом 30 хвилин.",
-    telegramUrl:"https://t.me/"+BOT+"?start=acc_"+token},201);
+    telegramUrl:"https://t.me/"+telegramBotUsername(env)+"?start=acc_"+token},201);
 }
 async function login(req,env){
   if(!await rate(env,req,"login",40,900))return err("Забагато спроб входу. Спробуйте через 15 хвилин.",429);
@@ -102,9 +108,11 @@ async function sendTelegram(env,chatId,message){
     method:"POST",headers:{"Content-Type":"application/json"},
     body:JSON.stringify({chat_id:chatId,text:message,disable_web_page_preview:true})
   });
-  return res.ok;
+  const result=await res.json().catch(()=>null);
+  return res.ok&&result?.ok===true;
 }
 async function forgot(req,env){
+  if(!telegramReady(env))return err("Відновлення через Telegram ще не налаштоване. Спробуйте пізніше.",503);
   if(!await rate(env,req,"forgot",5,3600))return err("Забагато запитів. Спробуйте пізніше.",429);
   const body=await input(req),email=emailValue(body?.email);if(!email)return err("Введіть коректний email.");
   const response=ok({ok:true,message:"Якщо акаунт підтверджено, посилання прийде до вашого Telegram."});
@@ -112,10 +120,12 @@ async function forgot(req,env){
   if(!user||!env.TELEGRAM_BOT_TOKEN)return response;
   const recent=await env.DB.prepare("SELECT id FROM customer_password_resets WHERE customer_id=? AND created_at>datetime('now','-2 minutes') LIMIT 1").bind(user.id).first();
   if(recent)return response;
-  const token=random(32),url=new URL("/account/?reset="+token,req.url).toString();
+  const token=random(32),tokenHash=await sha(token),url=new URL("/account/?reset="+token,siteOrigin(env)).toString();
   await env.DB.prepare("INSERT INTO customer_password_resets(customer_id,token_hash,expires_at) VALUES(?,?,datetime('now','+20 minutes'))").bind(user.id,await sha(token)).run();
-  try {await sendTelegram(env,user.telegram_id,"🔐 Tanuki Shop: відновлення пароля.\nПосилання дійсне 20 хвилин:\n"+url+"\nЯкщо ви не запитували це — ігноруйте повідомлення.");}
+  let delivered=false;
+  try {delivered=await sendTelegram(env,user.telegram_id,"🔐 Tanuki Shop: відновлення пароля.\nПосилання дійсне 20 хвилин:\n"+url+"\nЯкщо ви не запитували це — ігноруйте повідомлення.");}
   catch(e){console.error("Customer password reset delivery error");}
+  if(!delivered)await env.DB.prepare("DELETE FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL").bind(tokenHash).run();
   return response;
 }
 async function reset(req,env){
@@ -131,7 +141,8 @@ async function reset(req,env){
   const result=await env.DB.batch([
     env.DB.prepare("UPDATE customer_password_resets SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>datetime('now')").bind(claim,row.id),
     env.DB.prepare("UPDATE customer_accounts SET password_salt=?,password_hash=?,password_iterations=?,failed_logins=0,locked_until=NULL WHERE id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(salt,digest,ITERS,row.customer_id,row.id,claim),
-    env.DB.prepare("DELETE FROM customer_sessions WHERE customer_id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(row.customer_id,row.id,claim)
+    env.DB.prepare("DELETE FROM customer_sessions WHERE customer_id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(row.customer_id,row.id,claim),
+    env.DB.prepare("UPDATE customer_password_resets SET used_at=? WHERE customer_id=? AND used_at IS NULL AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(claim,row.customer_id,row.id,claim)
   ]);
   if(!result[0]?.meta?.changes)return err("Посилання вже використано.");
   return ok({ok:true,message:"Пароль змінено. Увійдіть із новим паролем."});

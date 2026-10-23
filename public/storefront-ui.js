@@ -2,6 +2,12 @@
 (() => {
   "use strict";
   const start = () => {
+    if(location.hostname.includes('tanuki-shop-preview')) {
+      const banner=document.createElement('div');
+      banner.textContent='ТЕСТОВИЙ МАГАЗИН — замовлення не виконуються';
+      banner.style.cssText='background:#fff0a8;color:#332200;text-align:center;padding:12px;font:700 14px system-ui';
+      document.body.prepend(banner);
+    }
     const toggle = document.getElementById("menuToggle");
     const nav = document.getElementById("siteNavigation");
     if (toggle && nav) {

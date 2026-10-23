@@ -1,6 +1,6 @@
 import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
+import {telegramBotUsername, siteOrigin} from "./environment.js";
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
-const TELEGRAM_BOT_USERNAME = "TanukiShopNotifyBot";
 
 const ORDER_STATUSES = [
   "new", "confirmed", "shipped", "completed", "cancelled"
@@ -433,12 +433,19 @@ async function telegramCall(env, method, payload) {
 }
 
 async function configureTelegramWebhook(env) {
+  const origin = siteOrigin(env);
+  if (!origin || !telegramBotUsername(env)) throw new Error("Telegram environment is not configured.");
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) {
     throw new Error("Не налаштовані секрети Telegram webhook.");
   }
 
+  const bot = await telegramCall(env, 'getMe', {});
+  if (String(bot.username || '').toLowerCase() !== telegramBotUsername(env).toLowerCase()) {
+    throw new Error('Telegram token does not match the configured bot.');
+  }
+
   return telegramCall(env, "setWebhook", {
-    url: "https://tanukishop.pp.ua/api/telegram/webhook",
+    url: origin + "/api/telegram/webhook",
     secret_token: env.TELEGRAM_WEBHOOK_SECRET,
     allowed_updates: ["message", "callback_query"]
   });
@@ -2169,6 +2176,7 @@ async function createOrder(request, env) {
     let telegramLink = null;
 
     try {
+      if (!env.TELEGRAM_BOT_TOKEN || !telegramBotUsername(env)) throw new Error("Telegram is not configured.");
       const rawToken = createTelegramLinkToken();
       const tokenHash = await sha256Hex(rawToken);
 
@@ -2182,7 +2190,7 @@ async function createOrder(request, env) {
       `).bind(orderId, tokenHash).run();
 
       telegramLink =
-        `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${rawToken}`;
+        `https://t.me/${telegramBotUsername(env)}?start=${rawToken}`;
     } catch (error) {
       console.error(
         "Telegram link creation error:",
@@ -2914,6 +2922,8 @@ export default {
       }
 
       /* ---------- STATIC ASSETS ---------- */
+
+      if (path.startsWith('/api/')) return json({ok:false,error:'API endpoint not found.'},404);
 
       if (env.ASSETS) {
         return env.ASSETS.fetch(request);
