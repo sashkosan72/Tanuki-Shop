@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#281644"><title>Кабінет — Tanuki Shop</title>
+<style>
+*{box-sizing:border-box}body{margin:0;min-height:100vh;font:16px system-ui,sans-serif;background:radial-gradient(ellipse at 20% 0,#714191,#211338 65%);color:#fff}
+header{padding:20px max(5vw,16px)}header a{color:#fff;text-decoration:none;font-weight:900}
+main{width:min(470px,calc(100% - 30px));margin:24px auto 60px;padding:28px;border:1px solid #aa78cd;border-radius:24px;background:#211235ea;box-shadow:0 15px 55px #14072699}
+h1{font-size:30px;margin:6px 0 12px}p{line-height:1.6;color:#ead8fb}nav{display:flex;flex-wrap:wrap;gap:7px;margin:24px 0}nav button{border:1px solid #b68cda;background:#382451;color:#fff;border-radius:15px;padding:10px 14px;cursor:pointer;font-weight:700}
+nav button[aria-pressed=true]{background:#c58bfa;color:#1e1033}
+form{display:grid;gap:13px}label{display:grid;gap:6px;font-size:14px}input{font:inherit;padding:13px;border:1px solid #a47cc3;background:#fff;color:#211338;border-radius:12px;width:100%}
+button[type=submit],.action{font:inherit;display:inline-block;border:0;border-radius:14px;background:#ecabef;color:#311549;padding:13px 17px;font-weight:900;cursor:pointer}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid white;outline-offset:3px}
+[hidden]{display:none!important}#message{margin:18px 0;white-space:pre-wrap;overflow-wrap:anywhere}.info{background:#43275b;border-radius:15px;padding:16px;margin:18px 0}
+small{color:#e1c4ec}a{color:#f4b9ff}
+</style></head><body><header><a href="/">← 🦝 Tanuki Shop</a></header>
+<main><h1>Особистий кабінет 💜</h1><p>Реєстрація з підтвердженням у Telegram та безпечний вхід.</p>
+<nav aria-label="Дії з акаунтом">
+<button data-view="login" aria-pressed="true">Увійти</button>
+<button data-view="register" aria-pressed="false">Реєстрація</button>
+<button data-view="forgot" aria-pressed="false">Забули пароль?</button>
+</nav>
+<p id="message" role="status" aria-live="polite"></p>
+<section id="profile" hidden><h2>Ваш профіль</h2><div id="details" class="info"></div><div id="points" class="info"></div><button class="action" id="logout" type="button">Вийти</button></section>
+<form id="login" autocomplete="on"><label>Email <input type="email" name="email" maxlength="254" autocomplete="email" required></label><label>Пароль <input type="password" name="password" minlength="10" maxlength="128" autocomplete="current-password" required></label><button type="submit">Увійти</button></form>
+<form id="register" hidden><label>Ім’я <input name="name" minlength="2" maxlength="70" autocomplete="name" required></label><label>Email <input type="email" name="email" maxlength="254" autocomplete="email" required></label><label>Пароль (від 10 символів) <input type="password" name="password" minlength="10" maxlength="128" autocomplete="new-password" required></label><button type="submit">Створити акаунт</button></form>
+<form id="forgot" hidden><label>Email <input type="email" name="email" maxlength="254" autocomplete="email" required></label><button type="submit">Надіслати у Telegram</button></form>
+<form id="reset" hidden><label>Новий пароль <input type="password" name="password" minlength="10" maxlength="128" autocomplete="new-password" required></label><button type="submit">Змінити пароль</button></form>
+<div id="telegram" hidden class="info"><p>Підтвердьте акаунт у Telegram:</p><a id="verifyLink" href="#" target="_blank" rel="noopener noreferrer">Відкрити Telegram-бота ↗</a></div>
+<p><small>Бонусна програма та промокоди ще готуються до запуску.</small></p>
+</main>
+<script>
+(()=>{'use strict';
+const $=x=>document.getElementById(x),forms=['login','register','forgot','reset'],tabs=[...document.querySelectorAll('[data-view]')];
+const msg=(s)=>{$('message').textContent=s;};
+function show(view){for(const id of forms)$(id).hidden=id!==view;tabs.forEach(t=>t.setAttribute('aria-pressed',String(t.dataset.view===view)));$('profile').hidden=true;}
+tabs.forEach(t=>t.addEventListener('click',()=>{history.replaceState(null,'','/account/');$('telegram').hidden=true;msg('');show(t.dataset.view);}));
+async function call(path,data){const r=await fetch('/api/customer/'+path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Tanuki-Request':'1'},body:JSON.stringify(data)});const body=await r.json().catch(()=>({error:'Помилка зв’язку'}));if(!r.ok)throw new Error(body.error||'Помилка запиту');return body;}
+async function profile(){const r=await fetch('/api/customer/me',{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();$('profile').hidden=false;forms.forEach(id=>$(id).hidden=true);$('details').textContent=d.customer.name+' · '+d.customer.email;const wallet=await fetch('/api/customer/wallet',{credentials:'same-origin'});const balance=wallet.ok?await wallet.json():null;$('points').textContent='Бонуси: '+(balance?.points??0)+' · програма ще не запущена';msg('');}
+for(const type of ['login','register','forgot','reset'])$(type).addEventListener('submit',async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;const data=Object.fromEntries(new FormData(e.currentTarget));if(type==='reset')data.token=new URLSearchParams(location.search).get('reset');try{const result=await call(type,data);msg(result.message||'Готово');if(type==='register'){const url=new URL(result.telegramUrl);if(url.protocol==='https:'&&url.hostname==='t.me'){$('verifyLink').href=url.href;$('telegram').hidden=false;}}if(type==='login'){await profile();}if(type==='reset'){history.replaceState(null,'','/account/');show('login');}}catch(ex){msg(ex.message);}finally{button.disabled=false;}});
+$('logout').addEventListener('click',async()=>{try{await call('logout',{});show('login');msg('Ви вийшли з акаунта.');}catch(e){msg(e.message);}});
+const resetToken=new URLSearchParams(location.search).get('reset');if(resetToken&&/^[0-9a-f]{64}$/.test(resetToken)){show('reset');}else profile().catch(()=>{});
+})();
+</script></body></html>
