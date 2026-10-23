@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#281644"><title>Кабінет — Tanuki Shop</title>
+<meta name="theme-color" content="#281644"><meta name="referrer" content="no-referrer"><title>Кабінет — Tanuki Shop</title>
 <style>
 *{box-sizing:border-box}body{margin:0;min-height:100vh;font:16px system-ui,sans-serif;background:radial-gradient(ellipse at 20% 0,#714191,#211338 65%);color:#fff}
 header{padding:20px max(5vw,16px)}header a{color:#fff;text-decoration:none;font-weight:900}
@@ -36,8 +36,8 @@ function show(view){for(const id of forms)$(id).hidden=id!==view;tabs.forEach(t=
 tabs.forEach(t=>t.addEventListener('click',()=>{history.replaceState(null,'','/account/');$('telegram').hidden=true;msg('');show(t.dataset.view);}));
 async function call(path,data){const r=await fetch('/api/customer/'+path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Tanuki-Request':'1'},body:JSON.stringify(data)});const body=await r.json().catch(()=>({error:'Помилка зв’язку'}));if(!r.ok)throw new Error(body.error||'Помилка запиту');return body;}
 async function profile(){const r=await fetch('/api/customer/me',{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();$('profile').hidden=false;forms.forEach(id=>$(id).hidden=true);$('details').textContent=d.customer.name+' · '+d.customer.email;const wallet=await fetch('/api/customer/wallet',{credentials:'same-origin'});const balance=wallet.ok?await wallet.json():null;$('points').textContent='Бонуси: '+(balance?.points??0)+' · програма ще не запущена';msg('');}
-for(const type of ['login','register','forgot','reset'])$(type).addEventListener('submit',async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;const data=Object.fromEntries(new FormData(e.currentTarget));if(type==='reset')data.token=new URLSearchParams(location.search).get('reset');try{const result=await call(type,data);msg(result.message||'Готово');if(type==='register'){const url=new URL(result.telegramUrl);if(url.protocol==='https:'&&url.hostname==='t.me'){$('verifyLink').href=url.href;$('telegram').hidden=false;}}if(type==='login'){await profile();}if(type==='reset'){history.replaceState(null,'','/account/');show('login');}}catch(ex){msg(ex.message);}finally{button.disabled=false;}});
+for(const type of ['login','register','forgot','reset'])$(type).addEventListener('submit',async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;const data=Object.fromEntries(new FormData(e.currentTarget));if(type==='reset')data.token=$('reset').dataset.token;try{const result=await call(type,data);msg(result.message||'Готово');if(type==='register'){const url=new URL(result.telegramUrl);if(url.protocol==='https:'&&url.hostname==='t.me'){$('verifyLink').href=url.href;$('telegram').hidden=false;}}if(type==='login'){await profile();}if(type==='reset'){history.replaceState(null,'','/account/');show('login');}}catch(ex){msg(ex.message);}finally{button.disabled=false;}});
 $('logout').addEventListener('click',async()=>{try{await call('logout',{});show('login');msg('Ви вийшли з акаунта.');}catch(e){msg(e.message);}});
-const resetToken=new URLSearchParams(location.search).get('reset');if(resetToken&&/^[0-9a-f]{64}$/.test(resetToken)){show('reset');}else profile().catch(()=>{});
+const resetToken=new URLSearchParams(location.search).get('reset');if(resetToken&&/^[0-9a-f]{64}$/.test(resetToken)){history.replaceState(null,'','/account/');show('reset');const form=$('reset');form.dataset.token=resetToken;}else profile().catch(()=>{});
 })();
 </script></body></html>
