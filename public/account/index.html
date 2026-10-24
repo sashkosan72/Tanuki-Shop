@@ -13,31 +13,26 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid white
 [hidden]{display:none!important}#message{margin:18px 0;white-space:pre-wrap;overflow-wrap:anywhere}.info{background:#43275b;border-radius:15px;padding:16px;margin:18px 0}
 small{color:#e1c4ec}a{color:#f4b9ff}
 </style></head><body><header><a href="/">← 🦝 Tanuki Shop</a></header>
-<main><h1>Особистий кабінет 💜</h1><p>Реєстрація з підтвердженням у Telegram та безпечний вхід.</p>
-<nav aria-label="Дії з акаунтом">
-<button data-view="login" aria-pressed="true">Увійти</button>
-<button data-view="register" aria-pressed="false">Реєстрація</button>
-<button data-view="forgot" aria-pressed="false">Забули пароль?</button>
-</nav>
+<main><h1>Особистий кабінет 💜</h1>
+<p>Увійдіть через Telegram. Якщо ви тут уперше, акаунт створиться автоматично — пароль не потрібен.</p>
 <p id="message" role="status" aria-live="polite"></p>
+<section id="signin"><div id="telegramWidget"></div><p id="loading">Завантажуємо кнопку Telegram…</p>
+<p><small>Використовуйте той Telegram, яким підтверджували попередній акаунт. Ваші дані залишаться в ньому.</small></p>
+<button class="action" id="retry" type="button" hidden>Спробувати ще раз</button></section>
 <section id="profile" hidden><h2>Ваш профіль</h2><div id="details" class="info"></div><div id="points" class="info"></div><button class="action" id="logout" type="button">Вийти</button></section>
-<form id="login" autocomplete="on"><label>Email <input type="email" name="email" maxlength="254" autocomplete="email" required></label><label>Пароль <input type="password" name="password" minlength="10" maxlength="128" autocomplete="current-password" required></label><button type="submit">Увійти</button></form>
-<form id="register" hidden><label>Ім’я <input name="name" minlength="2" maxlength="70" autocomplete="name" required></label><label>Email <input type="email" name="email" maxlength="254" autocomplete="email" required></label><label>Пароль (від 10 символів) <input type="password" name="password" minlength="10" maxlength="128" autocomplete="new-password" required></label><button type="submit">Створити акаунт</button></form>
-<form id="forgot" hidden><label>Email <input type="email" name="email" maxlength="254" autocomplete="email" required></label><button type="submit">Надіслати у Telegram</button></form>
-<form id="reset" hidden><label>Новий пароль <input type="password" name="password" minlength="10" maxlength="128" autocomplete="new-password" required></label><button type="submit">Змінити пароль</button></form>
-<div id="telegram" hidden class="info"><p>Підтвердьте акаунт у Telegram:</p><a id="verifyLink" href="#" target="_blank" rel="noopener noreferrer">Відкрити Telegram-бота ↗</a></div>
 <p><small>Бонусна програма та промокоди ще готуються до запуску.</small></p>
 </main>
 <script>
 (()=>{'use strict';
-const $=x=>document.getElementById(x),forms=['login','register','forgot','reset'],tabs=[...document.querySelectorAll('[data-view]')];
-const msg=(s)=>{$('message').textContent=s;};
-function show(view){for(const id of forms)$(id).hidden=id!==view;tabs.forEach(t=>t.setAttribute('aria-pressed',String(t.dataset.view===view)));$('profile').hidden=true;}
-tabs.forEach(t=>t.addEventListener('click',()=>{history.replaceState(null,'','/account/');$('telegram').hidden=true;msg('');show(t.dataset.view);}));
-async function call(path,data){const r=await fetch('/api/customer/'+path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Tanuki-Request':'1'},body:JSON.stringify(data)});const body=await r.json().catch(()=>({error:r.status>=500?'Сервіс тимчасово недоступний. Спробуйте пізніше.':'Не вдалося прочитати відповідь сервера.'}));if(!r.ok)throw new Error(body.error||'Помилка запиту');return body;}
-async function profile(){const r=await fetch('/api/customer/me',{credentials:'same-origin'});if(!r.ok)return;const d=await r.json();$('profile').hidden=false;forms.forEach(id=>$(id).hidden=true);$('details').textContent=d.customer.name+' · '+d.customer.email;const wallet=await fetch('/api/customer/wallet',{credentials:'same-origin'});const balance=wallet.ok?await wallet.json():null;$('points').textContent='Бонуси: '+(balance?.points??0)+' · програма ще не запущена';msg('');}
-for(const type of ['login','register','forgot','reset'])$(type).addEventListener('submit',async e=>{e.preventDefault();const button=e.currentTarget.querySelector('button[type=submit]');button.disabled=true;const data=Object.fromEntries(new FormData(e.currentTarget));if(type==='reset')data.token=$('reset').dataset.token;try{const result=await call(type,data);msg(result.message||'Готово');if(type==='register'){const url=new URL(result.telegramUrl);if(url.protocol==='https:'&&url.hostname==='t.me'){$('verifyLink').href=url.href;$('telegram').hidden=false;}}if(type==='login'){await profile();}if(type==='reset'){history.replaceState(null,'','/account/');show('login');}}catch(ex){msg(ex.message);}finally{button.disabled=false;}});
-$('logout').addEventListener('click',async()=>{try{await call('logout',{});show('login');msg('Ви вийшли з акаунта.');}catch(e){msg(e.message);}});
-const resetToken=new URLSearchParams(location.search).get('reset');if(resetToken&&/^[0-9a-f]{64}$/.test(resetToken)){history.replaceState(null,'','/account/');show('reset');const form=$('reset');form.dataset.token=resetToken;}else profile().catch(()=>{});
+const $=x=>document.getElementById(x);let busy=false,widgetTimer;
+const msg=s=>{$('message').textContent=s;};
+async function call(path,data){const r=await fetch('/api/customer/'+path,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','X-Tanuki-Request':'1'},body:JSON.stringify(data)});const body=await r.json().catch(()=>({error:'Сервіс тимчасово недоступний. Спробуйте пізніше.'}));if(!r.ok)throw new Error(body.error||'Помилка запиту');return body;}
+async function profile(){const r=await fetch('/api/customer/me',{credentials:'same-origin'});if(r.status===401)return false;if(!r.ok)throw new Error('Не вдалося завантажити профіль. Спробуйте ще раз.');const d=await r.json();$('profile').hidden=false;$('signin').hidden=true;$('details').textContent=d.customer.name+(d.customer.email?' · '+d.customer.email:'');const wallet=await fetch('/api/customer/wallet',{credentials:'same-origin'});const balance=wallet.ok?await wallet.json():null;$('points').textContent=balance?'Бонуси: '+balance.points+' · програма ще не запущена':'Не вдалося завантажити бонуси.';msg('');return true;}
+window.tanukiTelegramLogin=async data=>{if(busy)return;busy=true;msg('Перевіряємо підтвердження Telegram…');try{await call('telegram',data);await profile();}catch(e){msg(e.message);$('retry').hidden=false;}finally{busy=false;}};
+async function widget(){clearTimeout(widgetTimer);$('retry').hidden=true;$('loading').hidden=false;$('telegramWidget').replaceChildren();try{const r=await fetch('/api/customer/auth-config');const c=await r.json();if(!r.ok||!c.ready||!/^[A-Za-z0-9_]{5,32}$/.test(c.botUsername))throw new Error('Вхід через Telegram ще налаштовується. Спробуйте пізніше.');const script=document.createElement('script');script.src='https://telegram.org/js/telegram-widget.js?22';script.async=true;script.dataset.telegramLogin=c.botUsername;script.dataset.size='large';script.dataset.onauth='tanukiTelegramLogin(user)';script.dataset.requestAccess='write';script.onload=()=>{$('loading').hidden=true;};script.onerror=()=>{clearTimeout(widgetTimer);$('loading').hidden=true;msg('Не вдалося завантажити Telegram. Перевірте з’єднання або блокувальник вмісту.');$('retry').hidden=false;};$('telegramWidget').append(script);widgetTimer=setTimeout(()=>{$('loading').hidden=true;$('retry').hidden=false;},12000);}catch(e){$('loading').hidden=true;msg(e.message);$('retry').hidden=false;}}
+$('retry').addEventListener('click',()=>{msg('');widget();});
+$('logout').addEventListener('click',async()=>{try{await call('logout',{});$('profile').hidden=true;$('signin').hidden=false;msg('Ви вийшли з акаунта.');await widget();}catch(e){msg(e.message);}});
+if(location.search){history.replaceState(null,'','/account/');msg('Пароль більше не потрібен. Увійдіть через свій Telegram.');}
+profile().then(found=>{if(!found)return widget();}).catch(e=>{msg(e.message);$('retry').hidden=false;$('loading').hidden=true;});
 })();
 </script></body></html>

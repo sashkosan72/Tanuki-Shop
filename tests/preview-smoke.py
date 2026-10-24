@@ -1,6 +1,6 @@
 import json, urllib.request, urllib.error
 BASE='https://tanuki-shop-preview-pr6.sashh4051.workers.dev'
-checks=[('/api/health',None,200),('/api/products',None,200),('/api/customer/me',None,401),('/api/customer/wallet',None,401),('/api/admin/orders',None,401),('/api/unknown',None,404),('/api/customer/register',{'name':'QA','email':'invalid','password':'short'},400),('/api/customer/forgot',{'email':'invalid'},400),('/api/customer/login',{'email':'missing@example.invalid','password':'wrong-password'},401),('/api/orders',{'items':[]},400)]
+checks=[('/api/customer/auth-config',None,200),('/api/customer/telegram',{},401),('/api/health',None,200),('/api/products',None,200),('/api/customer/me',None,401),('/api/customer/wallet',None,401),('/api/admin/orders',None,401),('/api/unknown',None,404),('/api/customer/register',{'name':'QA','email':'invalid','password':'short'},410),('/api/customer/forgot',{'email':'invalid'},410),('/api/customer/login',{'email':'missing@example.invalid','password':'wrong-password'},410),('/api/orders',{'items':[]},400)]
 import subprocess
 for path,body,expected in checks:
     args=['curl','--max-time','30','-sS','-w','\n%{http_code}',BASE+path,'-H','Content-Type: application/json','-H','Origin: '+BASE,'-H','X-Tanuki-Request: 1']
@@ -10,4 +10,4 @@ for path,body,expected in checks:
     assert int(status)==expected,(path,status,payload[:200])
     data=json.loads(payload)
     print('PASS',path,status,flush=True)
-print('PASS: 10 Preview API checks; Telegram-dependent input validation enabled; real delivery requires separate E2E')
+print('PASS: 12 Preview API checks; real Telegram widget login requires separate E2E')

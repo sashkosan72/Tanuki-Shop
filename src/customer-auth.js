@@ -1,17 +1,12 @@
-import {derivePassword, PASSWORD_ITERATIONS, isCurrentPassword} from './password.js';
 /* Tanuki Shop customer accounts. Requires preview D1 migration. Disabled by default. */
 import {telegramBotUsername, telegramReady, siteOrigin} from './environment.js';
-const COOKIE="__Host-tanuki_customer",ITERS=PASSWORD_ITERATIONS,ENC=new TextEncoder();
+const COOKIE="__Host-tanuki_customer",ENC=new TextEncoder();
 const ok=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...headers}});
 const err=(message,status=400)=>ok({ok:false,error:message},status);
 const hex=b=>Array.from(b,n=>n.toString(16).padStart(2,"0")).join("");
 const random=(n=32)=>hex(crypto.getRandomValues(new Uint8Array(n)));
 const sha=async text=>hex(new Uint8Array(await crypto.subtle.digest("SHA-256",ENC.encode(text))));
 const unhex=h=>new Uint8Array((h.match(/../g)||[]).map(x=>parseInt(x,16)));
-async function hashPassword(password,salt,env,iterations=ITERS) {
-  return derivePassword(password,unhex(salt),iterations,env.CUSTOMER_PASSWORD_PEPPER);
-}
-function equal(a,b){if(typeof a!=="string"||typeof b!=="string"||a.length!==b.length)return false;let diff=0;for(let i=0;i<a.length;i++)diff|=a.charCodeAt(i)^b.charCodeAt(i);return diff===0;}
 function getCookie(request){
   for(const part of (request.headers.get("Cookie")||"").split(";")){
     const i=part.indexOf("=");
@@ -30,12 +25,7 @@ async function input(request){
   const text=new TextDecoder().decode(bytes);
   try{const val=JSON.parse(text);return val&&!Array.isArray(val)&&typeof val==="object"?val:null;}catch{return null;}
 }
-function emailValue(x){
-  if(typeof x!=="string")return "";
-  const val=x.trim().toLowerCase();return val.length<=254&&/^[^\s@<>]{1,64}@[^\s@<>]+\.[^\s@<>]{2,}$/.test(val)?val:"";
-}
-const validPass=x=>typeof x==="string"&&x.length>=10&&x.length<=128&&ENC.encode(x).length<=256;
-const publicUser=x=>({id:x.id,name:x.name,email:x.email,telegramLinked:!!x.telegram_id});
+const publicUser=x=>({id:x.id,name:x.name,email:x.email?.endsWith('@telegram.invalid')?'':x.email,telegramLinked:!!x.telegram_id});
 async function rate(env,req,action,max,windowSeconds){
   const ip=req.headers.get("CF-Connecting-IP")||"unknown";
   const key=await sha("tanuki:"+action+":"+ip);
@@ -50,118 +40,52 @@ async function currentUser(req,env){
   return env.DB.prepare("SELECT a.id,a.name,a.email,a.telegram_id FROM customer_sessions s JOIN customer_accounts a ON a.id=s.customer_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND a.verified_at IS NOT NULL LIMIT 1")
     .bind(await sha(token)).first();
 }
-async function register(req,env){
-  if(!telegramReady(env))return err("Підтвердження через Telegram ще не налаштоване. Спробуйте пізніше.",503);
-  if(!await rate(env,req,"register",8,3600))return err("Забагато спроб. Спробуйте пізніше.",429);
-  const body=await input(req),email=emailValue(body?.email),name=typeof body?.name==="string"?body.name.trim():"";
-  if(!email||name.length<2||name.length>70||!validPass(body?.password))
-    return err("Вкажіть ім'я, коректний email та пароль від 10 до 128 символів.");
-  // Allow safe re-issuance of an expired Telegram confirmation for an unverified account.
-  // Require proof of the original password before replacing a pending token.
-  const existing=await env.DB.prepare("SELECT id,verified_at,password_salt,password_hash,password_iterations FROM customer_accounts WHERE email=?")
-    .bind(email).first();
-  if(existing?.verified_at)return err("Цей email уже використовується. Увійдіть або відновіть доступ.",409);
-  const token=random(24),tokenHash=await sha(token);
-  if(existing){
-    if(!isCurrentPassword(existing.password_hash))return err("Для старого тестового акаунта підтвердіть Telegram за попереднім посиланням і скористайтеся відновленням пароля.",409);
-    const iters=Number(existing.password_iterations);
-    if(iters<100000||iters>1000000)return err("Не вдалося оновити підтвердження.",400);
-    const derived=await hashPassword(body.password,existing.password_salt,env,iters);
-    if(!equal(derived,existing.password_hash))return err("Цей email уже використовується. Перевірте пароль.",409);
-    await env.DB.prepare("UPDATE customer_accounts SET pending_token_hash=?,pending_expires_at=datetime('now','+30 minutes') WHERE id=? AND verified_at IS NULL")
-      .bind(tokenHash,existing.id).run();
-  }else{
-    const salt=random(16),digest=await hashPassword(body.password,salt,env);
-    try {
-      await env.DB.prepare("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,pending_token_hash,pending_expires_at) VALUES(?,?,?,?,?,?,datetime('now','+30 minutes'))")
-        .bind(name,email,salt,digest,ITERS,tokenHash).run();
-    }catch(e){
-      if(String(e).includes("UNIQUE"))return err("Цей email уже використовується.",409);
-      throw e;
-    }
-  }
-  return ok({ok:true,verificationRequired:true,message:"Підтвердіть акаунт у Telegram протягом 30 хвилин.",
-    telegramUrl:"https://t.me/"+telegramBotUsername(env)+"?start=acc_"+token},201);
-}
-async function login(req,env){
-  if(!await rate(env,req,"login",40,900))return err("Забагато спроб входу. Спробуйте через 15 хвилин.",429);
-  const body=await input(req),email=emailValue(body?.email),pass=body?.password;
-  if(!email||typeof pass!=="string"||pass.length>128)return err("Невірні дані для входу.",401);
-  const row=await env.DB.prepare("SELECT * FROM customer_accounts WHERE email=?").bind(email).first();
-  if(row?.locked_until&&Date.parse(row.locked_until.replace(" ","T")+"Z")>Date.now())
-    return err("Вхід тимчасово заблоковано. Спробуйте через 15 хвилин.",429);
-  if(row&&!isCurrentPassword(row.password_hash))return err("Оновлено захист паролів. Скористайтеся «Забули пароль», щоб відновити доступ через Telegram.",409);
-  const iters=Number(row?.password_iterations||ITERS);
-  if(iters<100000||iters>1000000)throw new Error("Invalid password hashing configuration");
-  const digest=await hashPassword(pass,row?.password_salt||"9b12cdbb5fa32411cfe26f397fed6598",env,iters);
-  if(!row||!equal(digest,row.password_hash)){
-    if(row)await env.DB.prepare("UPDATE customer_accounts SET failed_logins=failed_logins+1,locked_until=CASE WHEN failed_logins>=7 THEN datetime('now','+15 minutes') ELSE locked_until END WHERE id=?").bind(row.id).run();
-    return err("Невірний email або пароль.",401);
-  }
-  if(!row.verified_at)return err("Спочатку підтвердіть акаунт у Telegram.",403);
-  await env.DB.prepare("UPDATE customer_accounts SET failed_logins=0,locked_until=NULL WHERE id=?").bind(row.id).run();
-  const token=random(32);
-  await env.DB.prepare("INSERT INTO customer_sessions(customer_id,token_hash,expires_at) VALUES(?,?,datetime('now','+7 days'))").bind(row.id,await sha(token)).run();
-  return ok({ok:true,customer:publicUser(row)},200,{"Set-Cookie":setCookie(token)});
-}
-async function sendTelegram(env,chatId,message){
-  if(!env.TELEGRAM_BOT_TOKEN)return false;
-  const res=await fetch("https://api.telegram.org/bot"+env.TELEGRAM_BOT_TOKEN+"/sendMessage",{
-    method:"POST",headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({chat_id:chatId,text:message,disable_web_page_preview:true})
-  });
-  const result=await res.json().catch(()=>null);
-  return res.ok&&result?.ok===true;
-}
-async function forgot(req,env){
-  if(!telegramReady(env))return err("Відновлення через Telegram ще не налаштоване. Спробуйте пізніше.",503);
-  if(!await rate(env,req,"forgot",5,3600))return err("Забагато запитів. Спробуйте пізніше.",429);
-  const body=await input(req),email=emailValue(body?.email);if(!email)return err("Введіть коректний email.");
-  const response=ok({ok:true,message:"Якщо акаунт підтверджено, посилання прийде до вашого Telegram."});
-  const user=await env.DB.prepare("SELECT id,telegram_id FROM customer_accounts WHERE email=? AND verified_at IS NOT NULL AND telegram_id IS NOT NULL").bind(email).first();
-  if(!user||!env.TELEGRAM_BOT_TOKEN)return response;
-  const recent=await env.DB.prepare("SELECT id FROM customer_password_resets WHERE customer_id=? AND created_at>datetime('now','-2 minutes') LIMIT 1").bind(user.id).first();
-  if(recent)return response;
-  const token=random(32),tokenHash=await sha(token),url=new URL("/account/?reset="+token,siteOrigin(env)).toString();
-  await env.DB.prepare("INSERT INTO customer_password_resets(customer_id,token_hash,expires_at) VALUES(?,?,datetime('now','+20 minutes'))").bind(user.id,await sha(token)).run();
-  let delivered=false;
-  try {delivered=await sendTelegram(env,user.telegram_id,"🔐 Tanuki Shop: відновлення пароля.\nПосилання дійсне 20 хвилин:\n"+url+"\nЯкщо ви не запитували це — ігноруйте повідомлення.");}
-  catch(e){console.error("Customer password reset delivery error");}
-  if(!delivered)await env.DB.prepare("DELETE FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL").bind(tokenHash).run();
-  return response;
-}
-async function reset(req,env){
-  if(!await rate(env,req,"reset",12,3600))return err("Забагато запитів. Спробуйте пізніше.",429);
-  const body=await input(req);
-  if(!/^[0-9a-f]{64}$/.test(body?.token||"")||!validPass(body?.password))
-    return err("Невірне посилання або пароль коротший за 10 символів.");
-  const row=await env.DB.prepare("SELECT id,customer_id FROM customer_password_resets WHERE token_hash=? AND used_at IS NULL AND expires_at>datetime('now') LIMIT 1").bind(await sha(body.token)).first();
-  if(!row)return err("Посилання недійсне або термін його дії минув.");
-  const salt=random(16),digest=await hashPassword(body.password,salt,env);
-  // Claim with a unique marker; a reused token cannot change a password.
-  const claim=random(16);
+// Only fields documented by Telegram Login Widget are accepted and signed.
+async function telegramLogin(req,env){
+  if(!telegramReady(env))return err("Вхід через Telegram ще не налаштований.",503);
+  if(!await rate(env,req,"telegram-login",40,900))return err("Забагато спроб. Спробуйте через 15 хвилин.",429);
+  const data=await input(req),now=Math.floor(Date.now()/1000);
+  const keys=['id','first_name','last_name','username','photo_url','auth_date','hash'];
+  if(!data||Object.keys(data).some(k=>!keys.includes(k))||
+    !Number.isSafeInteger(data.id)||data.id<=0||
+    !Number.isSafeInteger(data.auth_date)||data.auth_date<now-300||data.auth_date>now+30||
+    typeof data.first_name!=='string'||!data.first_name.trim()||data.first_name.length>256||
+    !/^[0-9a-f]{64}$/.test(data.hash||'')||
+    ['last_name','username','photo_url'].some(k=>k in data&&(typeof data[k]!=='string'||data[k].length>2048)))
+    return err("Підтвердження Telegram недійсне або застаріле. Спробуйте увійти знову.",401);
+  const check=Object.keys(data).filter(k=>k!=='hash').sort().map(k=>k+'='+data[k]).join('\n');
+  const secret=await crypto.subtle.digest('SHA-256',ENC.encode(env.TELEGRAM_BOT_TOKEN));
+  const key=await crypto.subtle.importKey('raw',secret,{name:'HMAC',hash:'SHA-256'},false,['verify']);
+  if(!await crypto.subtle.verify('HMAC',key,unhex(data.hash),ENC.encode(check)))
+    return err("Не вдалося перевірити підпис Telegram.",401);
+  const telegramId=String(data.id),token=random(),tokenHash=await sha(token);
+  // Preserve account IDs, emails, balances and order relationships. Never merge by email or username.
+  await env.DB.prepare("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,telegram_id,verified_at) VALUES(?,?,'','telegram-only',0,?,CURRENT_TIMESTAMP) ON CONFLICT(telegram_id) DO NOTHING")
+    .bind((data.first_name+' '+(data.last_name||'')).trim().slice(0,70),random(16)+'@telegram.invalid',telegramId).run();
+  const user=await env.DB.prepare("SELECT id,name,email,telegram_id,verified_at FROM customer_accounts WHERE telegram_id=?").bind(telegramId).first();
+  if(!user?.verified_at)return err("Цей акаунт ще не підтверджений. Зверніться до підтримки.",403);
+  // Atomic one-use proof claim, including concurrent requests. A replay cannot mint a second session.
   const result=await env.DB.batch([
-    env.DB.prepare("UPDATE customer_password_resets SET used_at=? WHERE id=? AND used_at IS NULL AND expires_at>datetime('now')").bind(claim,row.id),
-    env.DB.prepare("UPDATE customer_accounts SET password_salt=?,password_hash=?,password_iterations=?,failed_logins=0,locked_until=NULL WHERE id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(salt,digest,ITERS,row.customer_id,row.id,claim),
-    env.DB.prepare("DELETE FROM customer_sessions WHERE customer_id=? AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(row.customer_id,row.id,claim),
-    env.DB.prepare("UPDATE customer_password_resets SET used_at=? WHERE customer_id=? AND used_at IS NULL AND EXISTS(SELECT 1 FROM customer_password_resets WHERE id=? AND used_at=?)").bind(claim,row.customer_id,row.id,claim)
+    env.DB.prepare("DELETE FROM customer_telegram_logins WHERE expires_at<?").bind(now),
+    env.DB.prepare("INSERT INTO customer_telegram_logins(proof_hash,claim,expires_at) VALUES(?,?,?) ON CONFLICT(proof_hash) DO NOTHING").bind(data.hash,tokenHash,data.auth_date+360),
+    env.DB.prepare("INSERT INTO customer_sessions(customer_id,token_hash,expires_at) SELECT ?,?,datetime('now','+7 days') WHERE EXISTS(SELECT 1 FROM customer_telegram_logins WHERE proof_hash=? AND claim=?)").bind(user.id,tokenHash,data.hash,tokenHash)
   ]);
-  if(!result[0]?.meta?.changes)return err("Посилання вже використано.");
-  return ok({ok:true,message:"Пароль змінено. Увійдіть із новим паролем."});
+  if(!result[2]?.meta?.changes)return err("Це підтвердження вже використане. Повторіть вхід через Telegram.",409);
+  return ok({ok:true,customer:publicUser(user)},200,{'Set-Cookie':setCookie(token)});
 }
 export async function handleCustomerRoute(request,env){
   if(env.CUSTOMER_AUTH_ENABLED!=="true")return err("Особистий кабінет ще готується до запуску.",503);
   if(!env.DB)return err("База даних недоступна.",503);
   const path=new URL(request.url).pathname,method=request.method.toUpperCase();
-  const gets=["/api/customer/me","/api/customer/wallet"];
-  const posts=["/api/customer/register","/api/customer/login","/api/customer/logout","/api/customer/forgot","/api/customer/reset"];
+  const gets=["/api/customer/me","/api/customer/wallet","/api/customer/auth-config"];
+  const posts=["/api/customer/telegram","/api/customer/register","/api/customer/login","/api/customer/logout","/api/customer/forgot","/api/customer/reset"];
   if(!((method==="GET"&&gets.includes(path))||(method==="POST"&&posts.includes(path))))return err("Маршрут не знайдено.",404);
   if(method==="POST"&&!allowed(request))return err("Неприпустиме джерело запиту.",403);
   try{
-    if(path==="/api/customer/register")return await register(request,env);
-    if(path==="/api/customer/login")return await login(request,env);
-    if(path==="/api/customer/forgot")return await forgot(request,env);
-    if(path==="/api/customer/reset")return await reset(request,env);
+    if(path==="/api/customer/auth-config")return ok({ok:true,mode:'telegram',botUsername:telegramBotUsername(env),ready:telegramReady(env)});
+    if(path==="/api/customer/telegram")return await telegramLogin(request,env);
+    if(['/api/customer/register','/api/customer/login','/api/customer/forgot','/api/customer/reset'].includes(path))
+      return err("Тепер вхід і реєстрація відбуваються через Telegram без пароля. Відкрийте особистий кабінет.",410);
     if(path==="/api/customer/logout"){
       const token=getCookie(request);
       if(/^[0-9a-f]{64}$/.test(token))
@@ -186,7 +110,7 @@ export async function confirmAccountFromTelegram(env,telegramUser,token){
   try {
     const result=await env.DB.prepare("UPDATE customer_accounts SET telegram_id=?,verified_at=CURRENT_TIMESTAMP,pending_token_hash=NULL,pending_expires_at=NULL WHERE pending_token_hash=? AND verified_at IS NULL AND pending_expires_at>datetime('now') AND NOT EXISTS(SELECT id FROM customer_accounts WHERE telegram_id=?)").bind(telegramId,await sha(token),telegramId).run();
     return result.meta?.changes===1
-      ?"✅ Акаунт підтверджено! Поверніться до Tanuki Shop та увійдіть з email і паролем."
+      ?"✅ Акаунт підтверджено! Поверніться до Tanuki Shop та натисніть «Увійти через Telegram»."
       :"Посилання недійсне або цей Telegram уже прив'язаний до іншого акаунта.";
   }catch(error){
     console.error("Customer confirmation error",error?.name||"unknown");

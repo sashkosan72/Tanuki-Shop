@@ -1,7 +1,7 @@
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
+import {createHash,createHmac} from 'node:crypto';
 const origin='https://tanuki-shop-preview-pr6.sashh4051.workers.dev',messages=[];
 let deliveryOK=true,checks=0;
 const mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'dist-preview/index.js',compatibilityDate:'2026-10-11',d1Databases:['DB'],bindings:{ENVIRONMENT:'preview',CUSTOMER_PASSWORD_PEPPER:'ab'.repeat(32),SITE_ORIGIN:origin,CUSTOMER_AUTH_ENABLED:'true',TELEGRAM_BOT_USERNAME:'TanukiQATestBot',TELEGRAM_BOT_TOKEN:'local-test-token',TELEGRAM_WEBHOOK_SECRET:'local-test-webhook'},outboundService:async request=>{assert.equal(new URL(request.url).hostname,'api.telegram.org');messages.push(await request.json());return new Response(JSON.stringify({ok:deliveryOK,result:{message_id:1}}),{status:deliveryOK?200:503,headers:{'Content-Type':'application/json'}});}}));
@@ -9,41 +9,53 @@ const db=await mf.getD1Database('DB');
 async function sql(s){return db.prepare(s).run();}
 async function call(path,body,expected=200,headers={}){const r=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','Origin':origin,'X-Tanuki-Request':'1',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const d=await r.json();assert.equal(r.status,expected,`${path}: ${JSON.stringify(d)}`);checks++;return {r,d};}
 try{
-for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
+for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
 await call('/api/health'); await call('/api/products');await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);
-const data={name:'QA Test',email:'qa@example.invalid',password:'test-password-2026'};
-await call('/api/customer/register',data,403,{Origin:'https://evil.invalid'});
-await call('/api/customer/register',{...data,password:'short'},400);
-let {d:reg}=await call('/api/customer/register',data,201);
-assert.equal(new URL(reg.telegramUrl).pathname,'/TanukiQATestBot');checks++;
-const token=new URL(reg.telegramUrl).searchParams.get('start');
-await call('/api/customer/register',{...data,password:'different-password'},409);
-await call('/api/customer/login',data,403);
-await call('/api/telegram/webhook',{message:{}},401);
-const webhook={message:{chat:{id:123456,type:'private'},from:{id:123456,first_name:'QA'},text:'/start '+token}};
-await call('/api/telegram/webhook',webhook,200,{'X-Telegram-Bot-Api-Secret-Token':'local-test-webhook'});
-assert.match(messages.at(-1).text,/Акаунт підтверджено/);checks++;
-await call('/api/telegram/webhook',webhook,200,{'X-Telegram-Bot-Api-Secret-Token':'local-test-webhook'});
-assert.match(messages.at(-1).text,/недійсне/);checks++;
-await call('/api/customer/register',data,409);
-await call('/api/customer/login',{...data,password:'wrong-password'},401);
-let login=await call('/api/customer/login',data);let cookie=login.r.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);cookie=cookie.split(';')[0];checks++;
+const stamp=Math.floor(Date.now()/1000);
+function signed(patch={},token='local-test-token'){
+ const data={id:123456,first_name:'QA',auth_date:stamp,...patch};
+ const check=Object.keys(data).sort().map(k=>k+'='+data[k]).join('\n');
+ return {...data,hash:createHmac('sha256',createHash('sha256').update(token).digest()).update(check).digest('hex')};
+}
+const endpoint='/api/customer/telegram';
+const config=await call('/api/customer/auth-config');assert.equal(config.d.botUsername,'TanukiQATestBot');checks++;
+for(const route of ['register','login','forgot','reset'])await call('/api/customer/'+route,{},410);
+await call(endpoint,signed(),403,{Origin:'https://evil.invalid'});
+await call(endpoint,signed(),403,{'X-Tanuki-Request':''});
+await call(endpoint,{},401);
+await call(endpoint,signed({},'wrong-token'),401);
+await call(endpoint,{...signed(),first_name:'Tampered'},401);
+await call(endpoint,signed({auth_date:stamp-301}),401);
+await call(endpoint,signed({auth_date:stamp+60}),401);
+await call(endpoint,signed({id:'123456'}),401);
+await call(endpoint,signed({id:-1}),401);
+await call(endpoint,signed({id:1.5}),401);
+await call(endpoint,signed({first_name:{bad:1}}),401);
+await call(endpoint,signed({email:'attacker@example.invalid'}),401);
+await call(endpoint,signed({username:'a'.repeat(6000)}),401);
+let login=await call(endpoint,signed());let cookie=login.r.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);cookie=cookie.split(';')[0];checks++;
+assert.equal(login.d.customer.email,'');checks++;
+await call(endpoint,signed(),409);
 await call('/api/customer/me',undefined,200,{Cookie:cookie});let wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,0);checks++;
-await sql("UPDATE customer_accounts SET password_hash='"+'ab'.repeat(32)+"',password_iterations=180000 WHERE id=1");
-await call('/api/customer/login',data,409);
-await call('/api/customer/forgot',{email:data.email});const reset=new URL(messages.at(-1).text.match(/https:\/\/[^\s]+/)[0]).searchParams.get('reset');
-const sibling='a'.repeat(64);await db.prepare("INSERT INTO customer_password_resets(customer_id,token_hash,expires_at) VALUES(1,?,datetime('now','+20 minutes'))").bind(createHash('sha256').update(sibling).digest('hex')).run();
-await call('/api/customer/reset',{token:reset,password:'new-password-2026'});
-await call('/api/customer/reset',{token:sibling,password:'old-link-password'},400);
-await call('/api/customer/reset',{token:reset,password:'reuse-password-2026'},400);
-await call('/api/customer/me',undefined,401,{Cookie:cookie});
-await call('/api/customer/login',data,401);
-login=await call('/api/customer/login',{...data,password:'new-password-2026'});cookie=login.r.headers.get('set-cookie').split(';')[0];
-await call('/api/customer/logout',{} ,200,{Cookie:cookie});await call('/api/customer/me',undefined,401,{Cookie:cookie});
-await sql("DELETE FROM customer_request_limits");await sql("DELETE FROM customer_password_resets");deliveryOK=false;
-await call('/api/customer/forgot',{email:data.email});assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM customer_password_resets').first()).n,0);checks++;deliveryOK=true;
-for(let i=0;i<8;i++)await call('/api/customer/login',{...data,password:'wrong-password'},401);
-await call('/api/customer/login',{...data,password:'new-password-2026'},429);
+await call('/api/customer/logout',{},200,{Cookie:cookie});await call('/api/customer/me',undefined,401,{Cookie:cookie});
+// A legacy account and its balances remain attached to its verified Telegram ID.
+await sql("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,telegram_id,verified_at) VALUES('Legacy','old@example.invalid','salt','oldhash',180000,'777',CURRENT_TIMESTAMP)");
+const legacy=await db.prepare("SELECT id FROM customer_accounts WHERE telegram_id='777'").first();
+await db.prepare("INSERT INTO customer_wallet_transactions(customer_id,points_delta,reason) VALUES(?,37,'test')").bind(legacy.id).run();
+login=await call(endpoint,signed({id:777}));assert.equal(login.d.customer.id,legacy.id);assert.equal(login.d.customer.email,'old@example.invalid');checks++;
+cookie=login.r.headers.get('set-cookie').split(';')[0];wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,37);checks++;
+const unchanged=await db.prepare('SELECT password_hash FROM customer_accounts WHERE id=?').bind(legacy.id).first();assert.equal(unchanged.password_hash,'oldhash');checks++;
+// Concurrent replay: exactly one session, not one per racing request.
+const race=signed({id:888});const results=await Promise.all([200,409].map(()=>mf.dispatchFetch(origin+endpoint,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Tanuki-Request':'1'},body:JSON.stringify(race)})));
+assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);checks++;
+assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM customer_sessions s JOIN customer_accounts a ON a.id=s.customer_id WHERE a.telegram_id='888'").first()).n,1);checks++;
+// Do not merge a new Telegram identity into an email account.
+login=await call(endpoint,signed({id:999,username:'old'}));assert.notEqual(login.d.customer.id,legacy.id);checks++;
+await call('/api/telegram/webhook',{message:{}},401);
+await sql("DELETE FROM customer_request_limits");
+for(let i=0;i<40;i++)await call(endpoint,{},401);
+await call(endpoint,{},429);
+await sql("DELETE FROM customer_request_limits");
 const order={customerName:'QA Only',customerPhone:'0000000000',customerCity:'Тест',customerAddress:'Тестова адреса',items:[{id:'qa-sticker',quantity:2,price:1}]};
 const {d:ordered}=await call('/api/orders',order,201);assert.equal(ordered.total,160);checks++;
 assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,8);checks++;
