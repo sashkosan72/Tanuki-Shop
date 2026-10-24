@@ -7,6 +7,7 @@
   <meta name="description" content="Tanuki Shop — kawaii та anime товари, аксесуари, плюшеві іграшки та подарунки.">
   <title>Tanuki Shop — Kawaii & Anime Store</title>
   <link rel="stylesheet" href="/style.css">
+  <script src="/storefront-ui.js" defer></script>
 
   <style>
     .product-image {
@@ -177,20 +178,30 @@
 
 <header class="site-header">
   <div class="container header-inner">
-    <a href="#" class="logo">🦝 Tanuki Shop</a>
-    <nav class="main-nav">
+    <a href="#home" class="logo" aria-label="Tanuki Shop — на головну">🦝 Tanuki Shop</a>
+    <nav class="main-nav" id="siteNavigation" aria-label="Основне меню">
+      <a href="#home">Головна</a>
+      <a href="#sticker-news">Новинки</a>
       <a href="#catalog">Каталог</a>
       <a href="#new">Категорії</a>
+      <a href="#member-benefits">Бонуси</a>
       <a href="#about">Про нас</a>
+      <a href="/account/">👤 Кабінет</a>
     </nav>
-    <button class="cart-button" id="cartButton" type="button">
-      🛒 Кошик <span id="cartCount">0</span>
-    </button>
+    <div class="header-actions">
+      <button class="cart-button" id="cartButton" type="button">
+        🛒 Кошик <span id="cartCount">0</span>
+      </button>
+      <button class="mobile-menu-button" id="menuToggle" type="button"
+        aria-label="Відкрити меню" aria-expanded="false" aria-controls="siteNavigation">
+        <span class="menu-toggle-bars" aria-hidden="true">☰</span>
+      </button>
+    </div>
   </div>
 </header>
 
 <main>
-  <section class="hero">
+  <section class="hero" id="home">
     <div class="container hero-content">
       <div class="hero-text">
         <span class="hero-badge">✨ Kawaii • Anime • Gifts</span>
@@ -203,6 +214,26 @@
         <a href="#catalog" class="hero-button">Перейти до каталогу →</a>
       </div>
       <div class="hero-character">🦝</div>
+    </div>
+  </section>
+
+  <!-- Анонс майбутньої колекції: без фальшивих товарів чи передзамовлень -->
+  <section class="sticker-teaser" id="sticker-news" aria-labelledby="sticker-teaser-title">
+    <div class="container sticker-teaser-inner">
+      <div class="sticker-teaser-copy">
+        <span class="sticker-teaser-eyebrow"><span class="sticker-teaser-dot" aria-hidden="true"></span> АНОНС · TANUKI SHOP</span>
+        <h2 id="sticker-teaser-title">Скоро нові <span>аніме-стікери!</span></h2>
+        <p>Готуємо нову kawaii-колекцію з японським настроєм, милими героями та атмосферою аніме. Трохи терпіння — і покажемо більше! 🌸</p>
+        <div class="sticker-teaser-tags" aria-label="Настрій майбутньої колекції">
+          <span>🌸 Sakura</span><span>💜 Anime</span><span>🦝 Tanuki</span>
+        </div>
+        <a class="sticker-teaser-link" href="#catalog">Переглянути каталог <span aria-hidden="true">→</span></a>
+        <p class="sticker-teaser-note">Це анонс: нові стікери ще не доступні для замовлення.</p>
+      </div>
+      <div class="sticker-teaser-art">
+        <img src="/sticker-teaser.svg" alt="Ілюстрація майбутньої колекції Tanuki Shop: усміхнений танукі, аніме-персонаж та сакура" width="820" height="680" loading="lazy" decoding="async">
+        <span class="sticker-teaser-art-label" aria-hidden="true">COMING SOON ✦</span>
+      </div>
     </div>
   </section>
 
@@ -254,6 +285,36 @@
       <p id="catalogError" class="catalog-message" hidden>
         Не вдалося завантажити каталог. Спробуйте оновити сторінку.
       </p>
+    </div>
+  </section>
+
+  <section class="member-benefits" id="member-benefits" aria-labelledby="member-benefits-title">
+    <div class="container">
+      <div class="section-heading">
+        <span aria-hidden="true">💜</span>
+        <h2 id="member-benefits-title">Більше можливостей для покупців</h2>
+        <p>Готуємо нові функції Tanuki Shop — вони ще не запущені</p>
+      </div>
+      <div class="member-benefits-grid">
+        <article class="member-benefit">
+          <span class="member-benefit-icon" aria-hidden="true">👤</span>
+          <span class="member-benefit-state">У розробці</span>
+          <h3>Особистий кабінет</h3>
+          <p>Реєстрація, вхід, відновлення пароля та історія замовлень.</p>
+        </article>
+        <article class="member-benefit">
+          <span class="member-benefit-icon" aria-hidden="true">🪙</span>
+          <span class="member-benefit-state">У розробці</span>
+          <h3>Бонусний гаманець</h3>
+          <p>Бонусний баланс і історія нарахувань — після запуску програми лояльності.</p>
+        </article>
+        <article class="member-benefit">
+          <span class="member-benefit-icon" aria-hidden="true">🎟️</span>
+          <span class="member-benefit-state">У розробці</span>
+          <h3>Промокоди та акції</h3>
+          <p>Персональні пропозиції й знижки, коли система буде готова.</p>
+        </article>
+      </div>
     </div>
   </section>
 
@@ -1001,6 +1062,7 @@
 <!-- KeyCRM online chat widget begin -->
 <script type="text/javascript">
 (function(w,d,t,u,c){
+  if(location.hostname!=="tanukishop.pp.ua") return;
   var s=d.createElement(t),j=d.getElementsByTagName(t)[0];
   s.src=u;
   s["async"]=true;
