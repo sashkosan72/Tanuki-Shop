@@ -298,6 +298,7 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
   <nav class="tabs" aria-label="Розділи адмін-панелі">
     <button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
     <button class="tab secondary" data-tab="productsTab" type="button">📦 Товари</button>
+    <button class="tab secondary" data-tab="partnersTab" type="button">🤝 Партнери</button>
     <button class="tab secondary" data-tab="supportTab" type="button">💬 Підтримка</button>
   </nav>
 
@@ -439,6 +440,19 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
   </section>
 
   <!-- ПІДТРИМКА -->
+  <section id="partnersTab" class="hidden">
+    <div class="panel"><h2>Партнери</h2><p class="muted">Керуйте картками на сторінці «Партнерство». Логотип додається за HTTPS-посиланням на зображення.</p>
+    <button type="button" id="newPartner">Додати партнера</button><a href="/partners/" target="_blank" rel="noopener">Переглянути сторінку ↗</a>
+    <p id="partnerAdminNotice" role="status" aria-live="polite"></p><div id="partnerAdminList"></div></div>
+    <form id="partnerForm" class="panel hidden"><h3 id="partnerFormHeading">Новий партнер</h3>
+    <label>Назва<input name="name" required maxlength="100"></label>
+    <label>Опис<textarea name="description" maxlength="1000" rows="4"></textarea></label>
+    <label>Посилання партнера<input name="url" type="url" placeholder="https://…" required maxlength="2048"></label>
+    <label>Посилання на логотип або аватарку<input name="image_url" type="url" placeholder="https://…" maxlength="2048"></label>
+    <label>Порядок показу (менше — вище)<input name="sort_order" type="number" min="0" max="9999" step="1" value="0" required></label>
+    <label><input name="active" type="checkbox"> Опубліковано</label>
+    <button id="savePartner" type="submit">Зберегти</button><button id="cancelPartner" type="button" class="secondary">Скасувати</button>
+    </form></section>
   <section id="supportTab" class="hidden">
     <h2>💬 Підтримка покупців</h2>
     <p class="muted">Повідомлення покупців із Telegram та історія листування.</p>
@@ -568,7 +582,7 @@ function showDashboard(){
 }
 
 function showTab(tabId){
-  ["ordersTab","supportTab","productsTab"].forEach(id=>{
+  ["ordersTab","supportTab","productsTab","partnersTab"].forEach(id=>{
     $(id).classList.toggle("hidden",id!==tabId);
   });
 
@@ -580,6 +594,7 @@ function showTab(tabId){
 
   if(tabId==="supportTab")loadSupportChats();
   if(tabId==="productsTab")loadAdminProducts(true);
+  if(tabId==="partnersTab")loadPartnersAdmin();
 }
 
 document.querySelectorAll(".tab").forEach(button=>{
@@ -1297,7 +1312,9 @@ loginForm.addEventListener("submit",async event=>{
 });
 
 $("refreshButton").addEventListener("click",async()=>{
-  if(!$("productsTab").classList.contains("hidden")){
+  if(!$("partnersTab").classList.contains("hidden")){
+    await loadPartnersAdmin();
+  }else if(!$("productsTab").classList.contains("hidden")){
     await loadAdminProducts(true);
   }else if(!$("supportTab").classList.contains("hidden")){
     if(selectedChatId)await openSupportChat(selectedChatId);
@@ -1316,6 +1333,39 @@ $("logoutButton").addEventListener("click",async()=>{
   showLogin();
 });
 
+
+/* -------------------- PARTNERS -------------------- */
+let partnersAdmin=[],partnerId=null;
+const partnerForm=document.getElementById('partnerForm');
+function partnerNotice(message){document.getElementById('partnerAdminNotice').textContent=message;}
+async function loadPartnersAdmin(){
+ partnerNotice('Завантаження…');
+ const list=document.getElementById('partnerAdminList');list.replaceChildren();
+ try{const data=await api('/api/admin/partners');partnersAdmin=data.partners||[];
+  for(const p of partnersAdmin){
+   const row=document.createElement('div');row.className='panel';
+   const title=document.createElement('strong');title.textContent=p.name+' — '+(p.active?'Опубліковано':'Приховано')+' · '+p.sort_order;
+   const edit=document.createElement('button');edit.type='button';edit.textContent='Редагувати';edit.addEventListener('click',()=>editPartner(p));
+   const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent='Видалити';
+   remove.addEventListener('click',async()=>{if(!confirm('Видалити партнера «'+p.name+'»?'))return;remove.disabled=true;try{await partnerWrite('/api/admin/partners/'+p.id,'DELETE');if(partnerId===p.id)partnerForm.classList.add('hidden');await loadPartnersAdmin();}catch(e){partnerNotice(e.message);}finally{remove.disabled=false;}});
+   row.append(title,document.createElement('br'),edit,remove);list.append(row);
+  }
+  partnerNotice(partnersAdmin.length?'Партнерів: '+partnersAdmin.length:'Партнерів ще немає. Додайте першу картку.');
+ }catch(e){partnerNotice(e.message);}
+}
+function editPartner(p){partnerId=p?.id??null;partnerForm.reset();for(const name of ['name','description','url','image_url','sort_order'])partnerForm.elements[name].value=p?.[name]??(name==='sort_order'?0:'');partnerForm.elements.active.checked=Boolean(p?.active);document.getElementById('partnerFormHeading').textContent=p?'Редагування партнера':'Новий партнер';partnerForm.classList.remove('hidden');partnerForm.elements.name.focus();}
+async function partnerWrite(path,method,payload){
+ const r=await fetch(path,{method,credentials:'same-origin',headers:{'Content-Type':'application/json','X-Tanuki-Request':'1'},...(payload?{body:JSON.stringify(payload)}:{})});
+ const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Не вдалося зберегти партнера.');return d;
+}
+document.getElementById('newPartner').addEventListener('click',()=>editPartner(null));
+document.getElementById('cancelPartner').addEventListener('click',()=>partnerForm.classList.add('hidden'));
+partnerForm.addEventListener('submit',async event=>{
+ event.preventDefault();const e=partnerForm.elements;const payload={name:e.name.value.trim(),description:e.description.value.trim(),url:e.url.value.trim(),image_url:e.image_url.value.trim(),sort_order:Number(e.sort_order.value),active:e.active.checked};
+ const button=document.getElementById('savePartner');button.disabled=true;
+ try{await partnerWrite('/api/admin/partners'+(partnerId===null?'':'/'+partnerId),partnerId===null?'POST':'PATCH',payload);partnerForm.classList.add('hidden');await loadPartnersAdmin();partnerNotice('Партнера збережено.');}catch(error){partnerNotice(error.message);}finally{button.disabled=false;}
+});
+
 /* -------------------- ПЕРЕВІРКА СЕСІЇ -------------------- */
 
 (async()=>{
@@ -1330,3 +1380,4 @@ $("logoutButton").addEventListener("click",async()=>{
 </script>
 </body>
 </html>
+

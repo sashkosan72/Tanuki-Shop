@@ -1,3 +1,4 @@
+import {publicPartners, adminPartners} from "./partners.js";
 import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
 import {telegramBotUsername, siteOrigin} from "./environment.js";
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
@@ -2664,6 +2665,8 @@ export default {
         return handleCustomerRoute(request, env);
       }
 
+      if (path === "/api/partners" && method === "GET") return publicPartners(env);
+
       /* ---------- HEALTH ---------- */
 
       if (path === "/api/health" && method === "GET") {
@@ -2752,6 +2755,8 @@ export default {
             error: "Потрібно увійти як адміністратор."
           }, 401);
         }
+
+        if (path === "/api/admin/partners" || path.startsWith("/api/admin/partners/")) return adminPartners(request, env);
 
         /* ---------- TELEGRAM WEBHOOK SETUP ---------- */
 
@@ -2943,3 +2948,4 @@ export default {
     }
   }
 };
+

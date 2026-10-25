@@ -4,12 +4,12 @@ import assert from 'node:assert/strict';
 import {createHash,createHmac} from 'node:crypto';
 const origin='https://tanuki-shop-preview-pr6.sashh4051.workers.dev',messages=[];
 let deliveryOK=true,checks=0;
-const mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'dist-preview/index.js',compatibilityDate:'2026-10-11',d1Databases:['DB'],bindings:{ENVIRONMENT:'preview',CUSTOMER_PASSWORD_PEPPER:'ab'.repeat(32),SITE_ORIGIN:origin,CUSTOMER_AUTH_ENABLED:'true',TELEGRAM_BOT_USERNAME:'TanukiQATestBot',TELEGRAM_BOT_TOKEN:'local-test-token',TELEGRAM_WEBHOOK_SECRET:'local-test-webhook'},outboundService:async request=>{assert.equal(new URL(request.url).hostname,'api.telegram.org');messages.push(await request.json());return new Response(JSON.stringify({ok:deliveryOK,result:{message_id:1}}),{status:deliveryOK?200:503,headers:{'Content-Type':'application/json'}});}}));
+const mf=new Miniflare(convertV4MiniflareOptions({modules:true,scriptPath:'dist-preview/index.js',compatibilityDate:'2026-10-11',d1Databases:['DB'],bindings:{ADMIN_PASSWORD:'local-admin-fixture',ENVIRONMENT:'preview',CUSTOMER_PASSWORD_PEPPER:'ab'.repeat(32),SITE_ORIGIN:origin,CUSTOMER_AUTH_ENABLED:'true',TELEGRAM_BOT_USERNAME:'TanukiQATestBot',TELEGRAM_BOT_TOKEN:'local-test-token',TELEGRAM_WEBHOOK_SECRET:'local-test-webhook'},outboundService:async request=>{assert.equal(new URL(request.url).hostname,'api.telegram.org');messages.push(await request.json());return new Response(JSON.stringify({ok:deliveryOK,result:{message_id:1}}),{status:deliveryOK?200:503,headers:{'Content-Type':'application/json'}});}}));
 const db=await mf.getD1Database('DB');
 async function sql(s){return db.prepare(s).run();}
 async function call(path,body,expected=200,headers={}){const r=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','Origin':origin,'X-Tanuki-Request':'1',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const d=await r.json();assert.equal(r.status,expected,`${path}: ${JSON.stringify(d)}`);checks++;return {r,d};}
 try{
-for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
+for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
 await call('/api/health'); await call('/api/products');await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);
 const stamp=Math.floor(Date.now()/1000);
 function signed(patch={},token='local-test-token'){
@@ -64,5 +64,34 @@ await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:2},{id:'qa-s
 assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,8);checks++;
 await call('/api/orders',{...order,items:[]},400);
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:-1}]},400);
+
+// Partner CRUD through the actual router and isolated D1.
+await call('/api/partners');
+await call('/api/admin/partners',undefined,401);
+await call('/api/admin/partners',{},401);
+const admin=await call('/api/admin/login',{password:'local-admin-fixture'});
+const adminCookie=admin.r.headers.get('set-cookie').split(';')[0];
+const fixture={name:'QA <script>literal</script>',description:'Partner description',url:'https://example.com/',image_url:'https://example.com/avatar.png',sort_order:2,active:false};
+async function partner(method,path,body,expected,extra={}){
+ const response=await mf.dispatchFetch(origin+path,{method,headers:{Cookie:adminCookie,Origin:origin,'Content-Type':'application/json','X-Tanuki-Request':'1',...extra},...(body===undefined?{}:{body:JSON.stringify(body)})});
+ const data=await response.json();assert.equal(response.status,expected,JSON.stringify(data));checks++;return data;
+}
+await partner('POST','/api/admin/partners',fixture,403,{Origin:'https://evil.invalid'});
+await partner('POST','/api/admin/partners',fixture,403,{'X-Tanuki-Request':''});
+for(const patch of [{url:'javascript:alert(1)'},{image_url:'data:image/svg+xml,test'},{url:'https://user:password@example.com'},{sort_order:-1},{active:'true'},{name:''},{description:'a'.repeat(1001)}])await partner('POST','/api/admin/partners',{...fixture,...patch},400);
+await partner('POST','/api/admin/partners',{...fixture,description:'a'.repeat(17000)},400);
+const created=await partner('POST','/api/admin/partners',fixture,201);
+let publicRows=(await call('/api/partners')).d.partners;assert.equal(publicRows.length,0);checks++;
+const route='/api/admin/partners/'+created.id;
+await partner('PATCH',route,{...fixture,active:true},200);
+publicRows=(await call('/api/partners')).d.partners;assert.equal(publicRows.length,1);assert.equal(publicRows[0].name,fixture.name);checks++;
+await partner('PATCH',route,{...fixture,active:false,image_url:''},200);
+assert.equal((await call('/api/partners')).d.partners.length,0);checks++;
+await partner('PATCH','/api/admin/partners/999999',fixture,404);
+await partner('DELETE',route,undefined,200);
+await partner('DELETE',route,undefined,404);
+assert.equal((await call('/api/partners')).d.partners.length,0);checks++;
+
 console.log(`PASS: ${checks} integration assertions (local Workers runtime + isolated D1; Telegram transport mocked)`);
 }finally{await mf.dispose();}
+
