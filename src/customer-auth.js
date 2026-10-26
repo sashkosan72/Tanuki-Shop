@@ -77,7 +77,7 @@ export async function handleCustomerRoute(request,env){
   if(env.CUSTOMER_AUTH_ENABLED!=="true")return err("Особистий кабінет ще готується до запуску.",503);
   if(!env.DB)return err("База даних недоступна.",503);
   const path=new URL(request.url).pathname,method=request.method.toUpperCase();
-  const gets=["/api/customer/me","/api/customer/wallet","/api/customer/auth-config"];
+  const gets=["/api/customer/me","/api/customer/wallet","/api/customer/orders","/api/customer/auth-config"];
   const posts=["/api/customer/telegram","/api/customer/register","/api/customer/login","/api/customer/logout","/api/customer/forgot","/api/customer/reset"];
   if(!((method==="GET"&&gets.includes(path))||(method==="POST"&&posts.includes(path))))return err("Маршрут не знайдено.",404);
   if(method==="POST"&&!allowed(request))return err("Неприпустиме джерело запиту.",403);
@@ -95,6 +95,26 @@ export async function handleCustomerRoute(request,env){
     const customer=await currentUser(request,env);
     if(!customer)return err("Увійдіть до акаунта.",401);
     if(path==="/api/customer/me")return ok({ok:true,customer:publicUser(customer)});
+    if(path==="/api/customer/orders"){
+      // Only orders explicitly linked to this authenticated Telegram identity.
+      // Never look up orders by a buyer's display name, phone number or email.
+      if(!customer.telegram_id)return ok({ok:true,orders:[]});
+      const linked=await env.DB.prepare(`
+        SELECT o.order_number,o.status,o.total_amount,o.created_at
+        FROM orders o
+        INNER JOIN order_telegram_links l ON l.order_id=o.id
+        INNER JOIN telegram_customers tc ON tc.id=l.telegram_customer_id
+        WHERE tc.telegram_id=?
+        ORDER BY o.id DESC
+        LIMIT 25
+      `).bind(String(customer.telegram_id)).all();
+      return ok({ok:true,orders:(linked.results||[]).map(o=>({
+        orderNumber:o.order_number,
+        status:o.status,
+        total:Number(o.total_amount),
+        createdAt:o.created_at
+      }))});
+    }
     const balance=await env.DB.prepare("SELECT COALESCE(SUM(points_delta),0) AS points FROM customer_wallet_transactions WHERE customer_id=?").bind(customer.id).first();
     return ok({ok:true,points:Number(balance?.points||0),enabled:false,currency:"bonus_points",message:"Бонусна програма ще не запущена."});
   }catch(error){
