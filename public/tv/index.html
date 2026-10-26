@@ -8,6 +8,7 @@
   <title>Tanuki TV — Прямий ефір</title>
   <link rel="stylesheet" href="/live/live.css">
   <script defer src="/live/countdown.js"></script>
+  <script defer src="/live/programs.js"></script>
   <script defer src="/live/live.js"></script>
 </head>
 <body data-channel="tv">
@@ -40,6 +41,11 @@
       <section class="info-card" aria-labelledby="now-on-tv"><h2 id="now-on-tv">🎬 Зараз в ефірі</h2><p id="now-playing" aria-live="polite">Інформацію про поточну програму ще не підключено</p></section>
       <section class="info-card" aria-labelledby="tv-program-title"><h2 id="tv-program-title">📅 Програма передач</h2><p id="schedule">Перший запланований старт: 27 жовтня о 16:00 (Київ). Детальну сітку передач ще не додано</p></section>
     </div>
+    <section class="guide-overview" aria-label="Повна програма передач">
+      <div class="guide-heading"><h2>📅 Програма передач</h2><span class="guide-date">27 жовтня 2026 · за Києвом</span></div>
+      <p class="guide-notice">Попередній розклад на день відкриття.</p>
+      <div id="program-guide">Завантаження розкладу…</div>
+    </section>
     <p class="setup-note">Живий ефір запускається вручну через OBS. Хмарний відеосервер і розклад поки не підключені.</p>
     <a class="back-link" href="/live/">← Усі канали</a>
   </main>
