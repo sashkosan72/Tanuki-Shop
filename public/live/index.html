@@ -8,6 +8,7 @@
   <title>Прямий ефір — Tanuki Radio & TV</title>
   <link rel="stylesheet" href="/live/live.css">
   <script defer src="/live/countdown.js"></script>
+  <script defer src="/live/programs.js"></script>
 </head>
 <body>
   <header class="live-header">
@@ -47,6 +48,14 @@
         <span class="offline-pill">Ефір ще не підключено</span>
         <a class="channel-action" href="/tv/">Відкрити Tanuki TV <span aria-hidden="true">→</span></a>
       </article>
+    </section>
+    <section class="guide-overview" id="overview-programs" aria-label="Програма передач">
+      <div class="guide-heading"><h2>Програма передач</h2><span class="guide-date">27 жовтня 2026 · за Києвом</span></div>
+      <p class="guide-notice">Попередній розклад на день відкриття.</p>
+      <div class="info-grid">
+        <article class="info-card"><h3>📻 Tanuki Radio</h3><div id="radio-programs">Завантаження…</div><a class="back-link" href="/radio/">Весь розклад Radio →</a></article>
+        <article class="info-card"><h3>📺 Tanuki TV</h3><div id="tv-programs">Завантаження…</div><a class="back-link" href="/tv/">Весь розклад TV →</a></article>
+      </div>
     </section>
     <p class="setup-note">Запуск ефіру здійснює власник через RadioBOSS або OBS. Сайт не вмикає трансляцію самостійно.</p>
   </main>
