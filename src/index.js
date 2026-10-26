@@ -1,3 +1,5 @@
+import { customerFromRequest, routeCustomerApi } from "./customer-auth.js";
+
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
 const TELEGRAM_BOT_USERNAME = "TanukiShopNotifyBot";
 
@@ -99,6 +101,36 @@ function getCookie(request, name) {
 
 function getTelegramSecret(request) {
   return request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+}
+
+async function checkRateLimit(request, limiter) {
+  // Відсутній binding не повинен непомітно вимикати захист.
+  if (!limiter) {
+    console.error("Required rate limiter binding is missing.");
+    return json({
+      ok: false,
+      error: "Захист запитів тимчасово недоступний. Спробуйте пізніше."
+    }, 503);
+  }
+
+  try {
+    const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
+    const { success } = await limiter.limit({ key: clientIp });
+
+    if (success) return null;
+
+    return json({
+      ok: false,
+      error: "Забагато спроб. Зачекайте хвилину та повторіть."
+    }, 429, { "Retry-After": "60" });
+  } catch (error) {
+    console.error("Rate limiter error:", error.message);
+
+    return json({
+      ok: false,
+      error: "Захист запитів тимчасово недоступний. Спробуйте пізніше."
+    }, 503);
+  }
 }
 
 function generateOrderNumber() {
@@ -1925,7 +1957,7 @@ async function serveProductImage(request, env) {
 
 /* -------------------- CREATE ORDER -------------------- */
 
-async function createOrder(request, env) {
+async function createOrder(request, env, customerId) {
   const body = await readJson(request);
 
   if (!body || typeof body !== "object") {
@@ -2007,7 +2039,6 @@ async function createOrder(request, env) {
   }
 
   const orderItems = [];
-  const reservations = [];
   let totalAmount = 0;
 
   try {
@@ -2046,30 +2077,6 @@ async function createOrder(request, env) {
         throw new Error("Некоректна ціна товару.");
       }
 
-      if (Number(product.track_stock) === 1) {
-        // Умовне списання не дозволяє продати більше наявного залишку.
-        const reservation = await env.DB.prepare(`
-          UPDATE products
-          SET stock = stock - ?,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE id = ?
-            AND active = 1
-            AND track_stock = 1
-            AND stock >= ?
-        `).bind(quantity, productId, quantity).run();
-
-        if (!(reservation.meta?.changes || 0)) {
-          throw new Error(
-            `Недостатньо товару «${product.name}» на складі.`
-          );
-        }
-
-        reservations.push({
-          id: productId,
-          quantity
-        });
-      }
-
       const lineTotal = effectivePrice * quantity;
 
       if (!Number.isSafeInteger(lineTotal)) {
@@ -2095,6 +2102,25 @@ async function createOrder(request, env) {
 
     const orderNumber = generateOrderNumber();
 
+    // Умови перевіряються всередині тієї самої транзакції, що й
+    // замовлення/позиції/залишки. Якщо ціна або наявність змінилися
+    // після початкового SELECT, замовлення взагалі не створюється.
+    const availabilityChecks = orderItems.map(() => `
+      EXISTS (
+        SELECT 1 FROM products
+        WHERE id = ?
+          AND active = 1
+          AND (track_stock = 0 OR stock >= ?)
+          AND COALESCE(sale_price, price) = ?
+      )
+    `).join(" AND ");
+
+    const availabilityParams = orderItems.flatMap(item => [
+      item.id,
+      item.quantity,
+      item.price
+    ]);
+
     const statements = [
       env.DB.prepare(`
         INSERT INTO orders (
@@ -2107,7 +2133,8 @@ async function createOrder(request, env) {
           total_amount,
           status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
+        SELECT ?, ?, ?, ?, ?, ?, ?, 'new'
+        WHERE ${availabilityChecks}
       `).bind(
         orderNumber,
         customerName,
@@ -2115,7 +2142,8 @@ async function createOrder(request, env) {
         customerCity,
         customerAddress,
         customerComment,
-        totalAmount
+        totalAmount,
+        ...availabilityParams
       ),
 
       ...orderItems.map(item =>
@@ -2142,10 +2170,40 @@ async function createOrder(request, env) {
           item.quantity,
           orderNumber
         )
-      )
+      ),
+
+      ...orderItems.map(item =>
+        env.DB.prepare(`
+          UPDATE products
+          SET stock = stock - ?,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+            AND active = 1
+            AND track_stock = 1
+            AND stock >= ?
+            AND EXISTS (
+              SELECT 1 FROM orders WHERE order_number = ?
+            )
+        `).bind(item.quantity, item.id, item.quantity, orderNumber)
+      ),
+
+      // Зв'язок із кабінетом покупця створюється в тій самій D1-транзакції.
+      // Старі замовлення залишаються незмінними.
+      env.DB.prepare(`
+        INSERT INTO customer_orders(customer_id, order_id)
+        SELECT ?, id FROM orders WHERE order_number = ?
+      `).bind(customerId, orderNumber)
     ];
 
-    await env.DB.batch(statements);
+    // D1.batch виконує ці операції в одній транзакції з rollback при помилці.
+    const batchResults = await env.DB.batch(statements);
+
+    if (!(batchResults[0]?.meta?.changes || 0)) {
+      return json({
+        ok: false,
+        error: "Деякі товари стали недоступними або змінилися за ціною. Оновіть каталог та кошик."
+      }, 409);
+    }
 
     const savedOrder = await env.DB.prepare(`
       SELECT id
@@ -2210,27 +2268,6 @@ async function createOrder(request, env) {
     }, 201);
   } catch (error) {
     console.error("Create order error:", error.message);
-
-    // Якщо оформлення не завершилося, повертаємо зарезервований залишок.
-    if (reservations.length) {
-      try {
-        await env.DB.batch(
-          reservations.map(item =>
-            env.DB.prepare(`
-              UPDATE products
-              SET stock = stock + ?,
-                  updated_at = CURRENT_TIMESTAMP
-              WHERE id = ?
-            `).bind(item.quantity, item.id)
-          )
-        );
-      } catch (restoreError) {
-        console.error(
-          "Stock restoration error:",
-          restoreError.message
-        );
-      }
-    }
 
     const message = error.message || "";
 
@@ -2662,6 +2699,12 @@ export default {
         return publicGetProducts(request, env);
       }
 
+      /* ---------- CUSTOMER ACCOUNT ---------- */
+
+      if (path.startsWith("/api/auth/") || path.startsWith("/api/account/")) {
+        return routeCustomerApi(request, env, checkRateLimit);
+      }
+
       /* ---------- TELEGRAM WEBHOOK ---------- */
 
       if (path === "/api/telegram/webhook" && method === "GET") {
@@ -2689,12 +2732,23 @@ export default {
       /* ---------- CREATE ORDER ---------- */
 
       if (path === "/api/orders" && method === "POST") {
-        return createOrder(request, env);
+        const limited = await checkRateLimit(request, env.ORDER_RATE_LIMITER);
+        if (limited) return limited;
+        const customer = await customerFromRequest(request, env);
+        if (!customer) {
+          return json({ ok: false, error: "Для замовлення увійдіть в акаунт." }, 401);
+        }
+        if (!customer.telegram_id) {
+          return json({ ok: false, error: "Для замовлення підтвердьте акаунт через Telegram." }, 403);
+        }
+        return createOrder(request, env, customer.id);
       }
 
       /* ---------- ADMIN LOGIN ---------- */
 
       if (path === "/api/admin/login" && method === "POST") {
+        const limited = await checkRateLimit(request, env.ADMIN_LOGIN_LIMITER);
+        if (limited) return limited;
         return adminLogin(request, env);
       }
 
