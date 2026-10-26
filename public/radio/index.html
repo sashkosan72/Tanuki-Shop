@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#fff0f6">
+  <meta name="description" content="Tanuki Radio — радіоефір, зараз грає та програма передач.">
+  <title>Tanuki Radio — Прямий ефір</title>
+  <link rel="stylesheet" href="/live/live.css">
+  <script defer src="/live/live.js"></script>
+</head>
+<body data-channel="radio">
+  <header class="live-header">
+    <div class="live-wrap live-top">
+      <a class="live-logo" href="/">🦝 Tanuki Shop</a>
+      <nav aria-label="Навігація"><a href="/">Магазин</a><a href="/live/">📡 Прямий ефір</a><a class="selected" href="/radio/" aria-current="page">Radio</a><a href="/tv/">TV</a></nav>
+    </div>
+  </header>
+  <main class="live-wrap">
+    <section class="live-hero small-hero">
+      <span class="eyebrow">TANUKI BROADCAST · RADIO</span>
+      <h1>📻 Tanuki <span>Radio</span></h1>
+      <p>Твоя музика. Твоя хвиля.</p>
+    </section>
+    <section class="broadcast-panel" aria-labelledby="radio-title">
+      <div class="section-title"><h2 id="radio-title">Прямий радіоефір</h2><span class="offline-pill" id="stream-status" role="status" aria-live="polite">Перевіряємо підключення…</span></div>
+      <div class="empty-player" id="player-zone"><span class="big-channel-symbol" aria-hidden="true">🎧</span><p>Перевіряємо радіопотік…</p></div>
+      <p class="muted">Звук відтворюється лише після натискання Play — автоматичного запуску немає.</p>
+    </section>
+    <div class="info-grid">
+      <section class="info-card" aria-labelledby="now-playing-title"><h2 id="now-playing-title">🎵 Зараз грає</h2><p id="now-playing" aria-live="polite">Дані RadioBOSS ще не підключено</p></section>
+      <section class="info-card" aria-labelledby="next-program-title"><h2 id="next-program-title">📅 Програма передач</h2><p id="schedule">Розклад ще не додано</p></section>
+    </div>
+    <p class="setup-note">Ефір запускається вручну через RadioBOSS. Поки радіохостинг не налаштовано, сайт не показує фальшивий статус «В ефірі».</p>
+    <a class="back-link" href="/live/">← Усі канали</a>
+  </main>
+  <footer class="live-footer"><div class="live-wrap">Tanuki Radio · <a href="/">Tanuki Shop</a></div></footer>
+</body>
+</html>
