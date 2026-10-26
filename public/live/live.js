@@ -44,7 +44,7 @@
       if (data && typeof data.nowPlaying === "string" && data.nowPlaying.trim())
         now.textContent = data.nowPlaying.slice(0, 180);
       if (data && typeof data.schedule === "string" && data.schedule.trim())
-        schedule.textContent = data.schedule.slice(0, 500);
+        if (schedule.dataset.programGuideReady !== "true") schedule.textContent = data.schedule.slice(0, 500);
     } catch {
       setStatus("Немає зв’язку зі статусом ефіру", false);
     }
