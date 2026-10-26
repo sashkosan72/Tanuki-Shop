@@ -1090,3 +1090,9 @@ button:disabled {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Tanuki Radio & TV navigation; never hide the live entry on mobile. */
+.live-nav-link{color:#b84e86!important;background:#fff0f6;padding:10px 13px;border-radius:16px;white-space:nowrap}
+.mobile-live-link{display:none;white-space:nowrap;font-weight:900;background:#f7edff;color:#885cb0;padding:10px 12px;border-radius:14px}
+@media(max-width:800px){.main-nav{gap:8px}.main-nav a{font-size:12px}.live-nav-link{padding:8px!important}}
+@media(max-width:560px){.mobile-live-link{display:inline-flex;padding:9px 10px;font-size:12px}.header-inner{flex-wrap:nowrap}.cart-button{white-space:nowrap;padding:10px 9px}}

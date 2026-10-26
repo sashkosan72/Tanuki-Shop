@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#fff0f6">
+  <meta name="description" content="Tanuki Radio та Tanuki TV — сторінки прямих ефірів і програма передач.">
+  <title>Прямий ефір — Tanuki Radio & TV</title>
+  <link rel="stylesheet" href="/live/live.css">
+  <script defer src="/live/countdown.js"></script>
+  <script defer src="/live/programs.js"></script>
+</head>
+<body>
+  <header class="live-header">
+    <div class="live-wrap live-top">
+      <a class="live-logo" href="/">🦝 Tanuki Shop</a>
+      <nav aria-label="Навігація"><a href="/">Магазин</a><a class="selected" href="/live/" aria-current="page">📡 Прямий ефір</a></nav>
+    </div>
+  </header>
+  <main class="live-wrap">
+    <section class="live-hero">
+      <span class="eyebrow">TANUKI BROADCAST</span>
+      <h1>Прямий ефір <span>Radio &amp; TV</span></h1>
+      <p>Музика, програми й аніме-настрій — в одному місці. Обери канал. Прямі трансляції з’являться тут після підключення сервера.</p>
+    </section>
+    <section class="launch-banner" aria-label="Анонс початку трансляцій">
+      <div>
+        <span class="launch-kicker">📅 ЗАПЛАНОВАНИЙ СТАРТ</span>
+        <p class="launch-when"><time datetime="2026-10-27T16:00:00+02:00">Вівторок, 27 жовтня 2026 · 16:00</time> <span class="launch-zone">за Києвом</span></p>
+        <p class="launch-hint">Ефір вмикається вручну. Це анонс, а не підтвердження трансляції.</p>
+      </div>
+      <p class="launch-countdown" role="timer" aria-live="off">Відлік до запуску завантажується…</p>
+    </section>
+    <section class="channel-grid" aria-label="Наші канали">
+      <article class="channel-card radio-card">
+        <span class="channel-symbol" aria-hidden="true">📻</span>
+        <span class="channel-tag">РАДІО</span>
+        <h2>Tanuki Radio</h2>
+        <p>Музика, авторські передачі, джингли й майбутній розклад.</p>
+        <span class="offline-pill">Ефір ще не підключено</span>
+        <a class="channel-action" href="/radio/">Відкрити Tanuki Radio <span aria-hidden="true">→</span></a>
+      </article>
+      <article class="channel-card tv-card">
+        <span class="channel-symbol" aria-hidden="true">📺</span>
+        <span class="channel-tag">ТЕЛЕБАЧЕННЯ</span>
+        <h2>Tanuki TV</h2>
+        <p>Музичні відео, заставки, програми та майбутній прямий ефір.</p>
+        <span class="offline-pill">Ефір ще не підключено</span>
+        <a class="channel-action" href="/tv/">Відкрити Tanuki TV <span aria-hidden="true">→</span></a>
+      </article>
+    </section>
+    <section class="guide-overview" id="overview-programs" aria-label="Програма передач">
+      <div class="guide-heading"><h2>Програма передач</h2><span class="guide-date">27 жовтня 2026 · за Києвом</span></div>
+      <p class="guide-notice">Попередній розклад на день відкриття.</p>
+      <div class="info-grid">
+        <article class="info-card"><h3>📻 Tanuki Radio</h3><div id="radio-programs">Завантаження…</div><a class="back-link" href="/radio/">Весь розклад Radio →</a></article>
+        <article class="info-card"><h3>📺 Tanuki TV</h3><div id="tv-programs">Завантаження…</div><a class="back-link" href="/tv/">Весь розклад TV →</a></article>
+      </div>
+    </section>
+    <p class="setup-note">Запуск ефіру здійснює власник через RadioBOSS або OBS. Сайт не вмикає трансляцію самостійно.</p>
+  </main>
+  <footer class="live-footer"><div class="live-wrap">Tanuki Radio &amp; TV · <a href="/">Повернутися до магазину</a></div></footer>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "radio": {
+    "streamUrl": "",
+    "statusUrl": ""
+  },
+  "tv": {
+    "streamUrl": "",
+    "statusUrl": ""
+  }
+}
