@@ -8,6 +8,7 @@
   <title>Tanuki Radio — Прямий ефір</title>
   <link rel="stylesheet" href="/live/live.css">
   <script defer src="/live/countdown.js"></script>
+  <script defer src="/live/programs.js"></script>
   <script defer src="/live/live.js"></script>
 </head>
 <body data-channel="radio">
@@ -40,6 +41,11 @@
       <section class="info-card" aria-labelledby="now-playing-title"><h2 id="now-playing-title">🎵 Зараз грає</h2><p id="now-playing" aria-live="polite">Дані RadioBOSS ще не підключено</p></section>
       <section class="info-card" aria-labelledby="next-program-title"><h2 id="next-program-title">📅 Програма передач</h2><p id="schedule">Перший запланований старт: 27 жовтня о 16:00 (Київ). Детальну сітку передач ще не додано</p></section>
     </div>
+    <section class="guide-overview" aria-label="Повна програма передач">
+      <div class="guide-heading"><h2>📅 Програма передач</h2><span class="guide-date">27 жовтня 2026 · за Києвом</span></div>
+      <p class="guide-notice">Попередній розклад на день відкриття.</p>
+      <div id="program-guide">Завантаження розкладу…</div>
+    </section>
     <p class="setup-note">Ефір запускається вручну через RadioBOSS. Поки радіохостинг не налаштовано, сайт не показує фальшивий статус «В ефірі».</p>
     <a class="back-link" href="/live/">← Усі канали</a>
   </main>
