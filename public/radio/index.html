@@ -7,6 +7,7 @@
   <meta name="description" content="Tanuki Radio — радіоефір, зараз грає та програма передач.">
   <title>Tanuki Radio — Прямий ефір</title>
   <link rel="stylesheet" href="/live/live.css">
+  <script defer src="/live/countdown.js"></script>
   <script defer src="/live/live.js"></script>
 </head>
 <body data-channel="radio">
@@ -22,6 +23,14 @@
       <h1>📻 Tanuki <span>Radio</span></h1>
       <p>Твоя музика. Твоя хвиля.</p>
     </section>
+    <section class="launch-banner" aria-label="Анонс початку трансляцій">
+      <div>
+        <span class="launch-kicker">📅 ЗАПЛАНОВАНИЙ СТАРТ</span>
+        <p class="launch-when"><time datetime="2026-10-27T16:00:00+02:00">Вівторок, 27 жовтня 2026 · 16:00</time> <span class="launch-zone">за Києвом</span></p>
+        <p class="launch-hint">Ефір вмикається вручну. Це анонс, а не підтвердження трансляції.</p>
+      </div>
+      <p class="launch-countdown" role="timer" aria-live="off">Відлік до запуску завантажується…</p>
+    </section>
     <section class="broadcast-panel" aria-labelledby="radio-title">
       <div class="section-title"><h2 id="radio-title">Прямий радіоефір</h2><span class="offline-pill" id="stream-status" role="status" aria-live="polite">Перевіряємо підключення…</span></div>
       <div class="empty-player" id="player-zone"><span class="big-channel-symbol" aria-hidden="true">🎧</span><p>Перевіряємо радіопотік…</p></div>
@@ -29,7 +38,7 @@
     </section>
     <div class="info-grid">
       <section class="info-card" aria-labelledby="now-playing-title"><h2 id="now-playing-title">🎵 Зараз грає</h2><p id="now-playing" aria-live="polite">Дані RadioBOSS ще не підключено</p></section>
-      <section class="info-card" aria-labelledby="next-program-title"><h2 id="next-program-title">📅 Програма передач</h2><p id="schedule">Розклад ще не додано</p></section>
+      <section class="info-card" aria-labelledby="next-program-title"><h2 id="next-program-title">📅 Програма передач</h2><p id="schedule">Перший запланований старт: 27 жовтня о 16:00 (Київ). Детальну сітку передач ще не додано</p></section>
     </div>
     <p class="setup-note">Ефір запускається вручну через RadioBOSS. Поки радіохостинг не налаштовано, сайт не показує фальшивий статус «В ефірі».</p>
     <a class="back-link" href="/live/">← Усі канали</a>
