@@ -55,3 +55,11 @@ audio{width:100%;max-width:700px}video{width:100%;display:block;aspect-ratio:16/
 .launch-hint{font-size:13px;color:#785c75;margin:5px 0 0}
 .launch-countdown{background:#fff;padding:12px 17px;border-radius:14px;border:1px solid #edd8f2;min-width:230px;color:#804db1;font-weight:900;text-align:center;margin:0}
 @media(max-width:650px){.launch-banner{flex-direction:column;align-items:stretch;padding:19px;margin:0 0 20px}.launch-when{font-size:19px}.launch-countdown{min-width:0}}
+
+/* Programme guide: sample line-up, not real-time proof of broadcast. */
+.guide-overview{margin:30px 0 22px;background:#fff;border:1px solid #f1dce8;border-radius:24px;padding:24px;box-shadow:0 12px 38px #86527110}
+.guide-heading{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.guide-heading h2{font-size:26px;margin:0}.guide-date{font-size:14px;font-weight:800;color:#8059a1}.guide-notice{color:#795f79;background:#f8f3ff;border-radius:12px;padding:11px 14px;font-size:14px;margin:15px 0}
+.guide-list{list-style:none;padding:0;margin:8px 0}.guide-item{display:flex;align-items:center;gap:14px;padding:14px 8px;border-bottom:1px solid #f4e8f2;flex-wrap:wrap}.guide-item:last-child{border:0}
+.guide-time{color:#8d5c9a;font-weight:900;white-space:nowrap;font-size:14px;min-width:102px}.guide-description{display:flex;flex-direction:column;gap:2px;min-width:150px;flex:1}.guide-title{font-weight:900}.guide-category{color:#8b7b8b;font-size:12px}.guide-state{color:#8359ba;font-size:12px;border-radius:999px;background:#f0e8ff;padding:5px 10px;font-weight:900}.guide-next{background:#fff0f7;color:#bc598f}.guide-current{background:#f9f2fe;border-radius:12px}.guide-empty{color:#827083}.guide-overview .info-card{box-shadow:none;background:#fffcff}.guide-overview .info-card h3{font-size:21px;margin:0 0 14px}.guide-overview .back-link{margin:12px 0 0}
+@media(max-width:650px){.guide-overview{padding:17px}.guide-heading h2{font-size:22px}.guide-item{gap:8px}.guide-time{min-width:95px;font-size:13px}.guide-title{font-size:14px}}
