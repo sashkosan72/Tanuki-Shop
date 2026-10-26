@@ -46,7 +46,12 @@
           "database_id": "22a1fb18-c698-4753-b07d-4a98a9aac60a"
         }
       ],
-      "r2_buckets": []
+      "r2_buckets": [
+        {
+          "binding": "PRODUCT_IMAGES",
+          "bucket_name": "tanuki-shop-preview-pr6-images"
+        }
+      ]
     }
   }
 }
