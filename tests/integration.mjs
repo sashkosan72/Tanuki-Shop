@@ -61,13 +61,14 @@ const {d:ordered}=await call('/api/orders',order,201);assert.equal(ordered.total
 const linkedTelegram=await db.prepare("INSERT INTO telegram_customers(telegram_id) VALUES('777')").run();
 const linkedId=linkedTelegram.meta.last_row_id;
 const createdOrder=await db.prepare("SELECT id FROM orders WHERE order_number=?").bind(ordered.orderNumber).first();
-if(createdOrder){
+assert.ok(createdOrder);checks++;
+{
  await db.prepare("INSERT INTO order_telegram_links(order_id,telegram_customer_id) VALUES(?,?)").bind(createdOrder.id,linkedId).run();
  const owned=await call('/api/customer/orders',undefined,200,{Cookie:cookie});
  assert.equal(owned.d.orders.length,1);checks++;
  assert.equal(owned.d.orders[0].total,160);checks++;
  const unowned=await call('/api/customer/orders',undefined,200,{Cookie:login.r.headers.get('set-cookie').split(';')[0]});
- assert.deepEqual(unowned.d.orders,owned.d.orders);checks++;
+ assert.deepEqual(unowned.d.orders,[]);checks++;
 }
 
 assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,8);checks++;
