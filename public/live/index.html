@@ -7,6 +7,7 @@
   <meta name="description" content="Tanuki Radio та Tanuki TV — сторінки прямих ефірів і програма передач.">
   <title>Прямий ефір — Tanuki Radio & TV</title>
   <link rel="stylesheet" href="/live/live.css">
+  <script defer src="/live/countdown.js"></script>
 </head>
 <body>
   <header class="live-header">
@@ -20,6 +21,14 @@
       <span class="eyebrow">TANUKI BROADCAST</span>
       <h1>Прямий ефір <span>Radio &amp; TV</span></h1>
       <p>Музика, програми й аніме-настрій — в одному місці. Обери канал. Прямі трансляції з’являться тут після підключення сервера.</p>
+    </section>
+    <section class="launch-banner" aria-label="Анонс початку трансляцій">
+      <div>
+        <span class="launch-kicker">📅 ЗАПЛАНОВАНИЙ СТАРТ</span>
+        <p class="launch-when"><time datetime="2026-10-27T16:00:00+02:00">Вівторок, 27 жовтня 2026 · 16:00</time> <span class="launch-zone">за Києвом</span></p>
+        <p class="launch-hint">Ефір вмикається вручну. Це анонс, а не підтвердження трансляції.</p>
+      </div>
+      <p class="launch-countdown" role="timer" aria-live="off">Відлік до запуску завантажується…</p>
     </section>
     <section class="channel-grid" aria-label="Наші канали">
       <article class="channel-card radio-card">
