@@ -8,10 +8,17 @@
 - Local in-memory SQLite check: apply all three repository migrations twice; pre-existing synthetic order, item, Telegram link and product rows remain identical. Foreign-key check is empty and integrity check returns ok. No customer data was copied.
 - Corrected the storefront description to match Telegram passwordless authentication. Preview build for cf8497fa3d9e096414b41dcae6477cd0bec750a6 succeeded.
 
+## Verified on 2026-10-27
+
+- User confirmed the requested phone checks: menu, cart quantity changes and existing account profile work. This is user-reported coverage, separate from browser automation.
+- Reviewed the new order-history endpoint: it selects orders only through the authenticated Telegram identity and explicit order links.
+- Live Preview browser displayed the existing synthetic linked order in the account history.
+- Fixed wallet network/JSON failures preventing order history from loading; locally tested network exception, malformed JSON, HTTP failure and normal wallet response. Order history rendered in all four cases.
+- Added wrapping for long profile text. Preview deployment for 00d76289780963d734b4d593cac0cf261c2c6d89 completed successfully; Cloudflare integration suite contains 129 assertions.
+
 ## Required before release
 
 - Real first-time Telegram registration using an identity that has not registered in Preview. Existing-account login and synthetic signed fixtures are not this test. Never delete an existing customer merely to simulate signup.
-- Final phone viewport/touch check of menu, catalog, cart and account. Prior narrow iframe coverage is not a real-device test.
 - Confirm additive migration prerequisites and explicit customer-auth configuration before enabling the feature. Preserve existing deployment bindings, secrets, bot and data. Never run test schema/seed on production.
 - Confirm production Telegram Login domain through the owner-controlled bot settings; do not change the production webhook for Preview testing.
 - Release only the tested commit after all checks pass; smoke-test production read-only and retain a rollback path.
