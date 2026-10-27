@@ -1,4 +1,5 @@
 import {publicPartners, adminPartners} from "./partners.js";
+import {adminPromos,quotePromoCart} from "./promos.js";
 import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
 import {telegramBotUsername, siteOrigin} from "./environment.js";
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
@@ -2666,6 +2667,7 @@ export default {
       }
 
       if (path === "/api/partners" && method === "GET") return publicPartners(env);
+      if (path === "/api/promos/quote" && method === "POST") return quotePromoCart(request,env);
 
       /* ---------- HEALTH ---------- */
 
@@ -2757,6 +2759,7 @@ export default {
         }
 
         if (path === "/api/admin/partners" || path.startsWith("/api/admin/partners/")) return adminPartners(request, env);
+        if (path === "/api/admin/promos" || path.startsWith("/api/admin/promos/")) return adminPromos(request,env);
 
         /* ---------- TELEGRAM WEBHOOK SETUP ---------- */
 
