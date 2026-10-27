@@ -9,8 +9,8 @@ const db=await mf.getD1Database('DB');
 async function sql(s){return db.prepare(s).run();}
 async function call(path,body,expected=200,headers={}){const r=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','Origin':origin,'X-Tanuki-Request':'1',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const d=await r.json();assert.equal(r.status,expected,`${path}: ${JSON.stringify(d)}`);checks++;return {r,d};}
 try{
-for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
-await call('/api/health'); await call('/api/products');await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);await call('/api/customer/orders',undefined,401);
+for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql','migrations/20261028_promo_codes.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
+await call('/api/health'); await call('/api/products'); await call('/api/admin/promos',undefined,401); await call('/api/promos/quote',{promoCode:'TANUKI10',items:[{id:'qa-sticker',quantity:1}]},503);await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);await call('/api/customer/orders',undefined,401);
 const stamp=Math.floor(Date.now()/1000);
 function signed(patch={},token='local-test-token'){
  const data={id:123456,first_name:'QA',auth_date:stamp,...patch};
@@ -84,6 +84,22 @@ await call('/api/admin/partners',undefined,401);
 await call('/api/admin/partners',{},401);
 const admin=await call('/api/admin/login',{password:'local-admin-fixture'});
 const adminCookie=admin.r.headers.get('set-cookie').split(';')[0];
+{
+ const h={Cookie:adminCookie,Origin:origin,'Content-Type':'application/json','X-Tanuki-Request':'1'};
+ async function promo(method,path,body,status=200,headers=h){
+   const r=await mf.dispatchFetch(origin+path,{method,headers,...(body===undefined?{}:{body:JSON.stringify(body)})});
+   const d=await r.json();assert.equal(r.status,status,JSON.stringify(d));checks++;return d;
+ }
+ const code={code:'TANUKI10',type:'percent',value:10,minimumOrder:100,maxUses:2,startsAt:null,expiresAt:null,active:true};
+ await promo('POST','/api/admin/promos',code,403,{...h,Origin:'https://evil.invalid'});
+ await promo('POST','/api/admin/promos',code,201);
+ const list=await promo('GET','/api/admin/promos');assert.equal(list.promos.length,1);assert.equal(list.promos[0].code,'TANUKI10');checks+=2;
+ await promo('POST','/api/admin/promos',code,409);
+ await promo('PATCH','/api/admin/promos/TANUKI10',{...code,active:false},200);
+ const inactive=await promo('GET','/api/admin/promos');assert.equal(inactive.promos[0].active,0);checks++;
+ await promo('PATCH','/api/admin/promos/TANUKI10',{...code,active:true},200);
+}
+
 const fixture={name:'QA <script>literal</script>',description:'Partner description',url:'https://example.com/',image_url:'https://example.com/avatar.png',sort_order:2,active:false};
 async function partner(method,path,body,expected,extra={}){
  const response=await mf.dispatchFetch(origin+path,{method,headers:{Cookie:adminCookie,Origin:origin,'Content-Type':'application/json','X-Tanuki-Request':'1',...extra},...(body===undefined?{}:{body:JSON.stringify(body)})});
