@@ -1,0 +1,15 @@
+{
+  "name": "tanuki-shop",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:preview": "wrangler deploy --env preview --dry-run --outdir dist-preview && node scripts/build-preview.mjs",
+    "test": "node tests/password.mjs && npm run build:preview && node tests/integration.mjs",
+    "test:preview": "python3 tests/preview-smoke.py"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "5.20261023.1",
+    "miniflare": "5.20261019.2-beta",
+    "wrangler": "4.152.0"
+  }
+}

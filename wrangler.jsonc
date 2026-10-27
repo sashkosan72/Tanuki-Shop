@@ -10,7 +10,10 @@
     "directory": "./public",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/media/*"]
+    "run_worker_first": [
+      "/api/*",
+      "/media/*"
+    ]
   },
   "d1_databases": [
     {
@@ -24,5 +27,35 @@
       "binding": "PRODUCT_IMAGES",
       "bucket_name": "tanuki-shop-images"
     }
-  ]
+  ],
+  "env": {
+    "preview": {
+      "name": "tanuki-shop-preview-pr6",
+      "workers_dev": true,
+      "routes": [],
+      "vars": {
+        "ENVIRONMENT": "preview",
+        "TELEGRAM_BOT_USERNAME": "TanukiShopPreviewBot",
+        "SITE_ORIGIN": "https://tanuki-shop-preview-pr6.sashh4051.workers.dev",
+        "CUSTOMER_AUTH_ENABLED": "true"
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "tanuki-shop-preview-20261023",
+          "database_id": "22a1fb18-c698-4753-b07d-4a98a9aac60a"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "PRODUCT_IMAGES",
+          "bucket_name": "tanuki-shop-preview-pr6-images"
+        }
+      ]
+    }
+  },
+  "keep_vars": true,
+  "vars": {
+    "CUSTOMER_AUTH_ENABLED": "true"
+  }
 }

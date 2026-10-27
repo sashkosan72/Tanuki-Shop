@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="820" height="680" viewBox="0 0 820 680" role="img" aria-labelledby="title desc">
+<title id="title">Tanuki Shop — майбутні аніме-стікери</title>
+<desc id="desc">Авторська ілюстрація: милі стікери з танукі, аніме-дівчиною, квітами сакури та зірками на фіолетовому тлі.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" x2="1" y2="1"><stop stop-color="#110d32"/><stop offset=".55" stop-color="#432070"/><stop offset="1" stop-color="#b64fd0"/></linearGradient>
+  <linearGradient id="hair" x1="0" x2="1" y2="1"><stop stop-color="#fff1ff"/><stop offset=".38" stop-color="#d997f5"/><stop offset="1" stop-color="#7757d9"/></linearGradient>
+  <linearGradient id="tanuki" x1="0" x2="0" y2="1"><stop stop-color="#efcba7"/><stop offset="1" stop-color="#be846c"/></linearGradient>
+  <radialGradient id="halo"><stop stop-color="#faadff" stop-opacity=".8"/><stop offset="1" stop-color="#faadff" stop-opacity="0"/></radialGradient>
+  <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="20"/></filter>
+  <g id="star"><path d="M0 -16L4 -4L16 0L4 4L0 16L-4 4L-16 0L-4 -4Z" fill="#ffe2fd"/></g>
+  <g id="sakura"><g fill="#ffaadd" stroke="#ffffff" stroke-width="2"><ellipse cy="-12" rx="10" ry="17"/><ellipse cy="-12" rx="10" ry="17" transform="rotate(72)"/><ellipse cy="-12" rx="10" ry="17" transform="rotate(144)"/><ellipse cy="-12" rx="10" ry="17" transform="rotate(216)"/><ellipse cy="-12" rx="10" ry="17" transform="rotate(288)"/></g><circle r="6" fill="#ffdf77"/></g>
+</defs>
+<rect width="820" height="680" fill="url(#bg)"/>
+<circle cx="570" cy="180" r="240" fill="url(#halo)" filter="url(#glow)"/>
+<circle cx="630" cy="190" r="142" fill="#d7a5ff" opacity=".12" stroke="#f6c5ff" stroke-width="2"/>
+<path d="M-30 125Q240 -45 450 75" fill="none" stroke="#f09bdc" stroke-width="2" opacity=".5"/>
+<path d="M-10 165Q210 55 385 155" fill="none" stroke="#f09bdc" stroke-width="2" opacity=".5"/>
+<use href="#sakura" transform="translate(95 90) scale(.85)"/><use href="#sakura" transform="translate(210 56) scale(.65)"/><use href="#sakura" transform="translate(330 120) scale(.44)"/>
+<use href="#sakura" transform="translate(735 520) scale(.85)"/><use href="#sakura" transform="translate(700 610) scale(.5)"/><use href="#sakura" transform="translate(110 600) scale(.5)"/>
+<use href="#star" transform="translate(635 65) scale(.55)"/><use href="#star" transform="translate(55 330) scale(.85)"/><use href="#star" transform="translate(765 350) scale(.55)"/><use href="#star" transform="translate(315 572) scale(.55)"/>
+<!-- Japanese gate silhouette -->
+<g opacity=".36" fill="#f7b5ff"><rect x="560" y="305" width="14" height="220"/><rect x="718" y="305" width="14" height="220"/><rect x="543" y="293" width="205" height="15" rx="6"/><path d="M525 281H767L750 263H543Z"/></g>
+<!-- anime-inspired original character sticker -->
+<g transform="rotate(-8 295 325)">
+  <path d="M125 360Q107 143 270 118Q420 110 447 295Q467 420 425 501Q338 540 188 490Z" fill="#8152ba" stroke="#ffffff" stroke-width="13" stroke-linejoin="round"/>
+  <path d="M168 425Q166 322 262 302Q365 280 421 413L431 520L160 515Z" fill="#261c58" stroke="#ffffff" stroke-width="10"/>
+  <path d="M202 266Q190 170 278 160Q390 166 397 274L370 363Q322 411 262 378Q217 345 202 266Z" fill="#f8d6da"/>
+  <path d="M195 240Q163 177 227 136Q295 89 375 148Q419 182 398 259L375 218L355 238L335 195L290 240L278 212L249 252L213 228L207 290Z" fill="url(#hair)" stroke="#6d4ba7" stroke-width="5"/>
+  <path d="M215 249Q185 312 203 393Q161 343 162 263Z" fill="#a77be7"/>
+  <path d="M396 243Q418 333 391 408Q432 337 423 269Z" fill="#9f74e3"/>
+  <ellipse cx="266" cy="290" rx="17" ry="22" fill="#815ab3"/><ellipse cx="342" cy="284" rx="17" ry="22" fill="#815ab3"/>
+  <ellipse cx="270" cy="282" rx="6" ry="9" fill="#ffffff"/><ellipse cx="346" cy="277" rx="6" ry="9" fill="#ffffff"/>
+  <path d="M298 340q13 12 27 -2" fill="none" stroke="#9a678c" stroke-width="5" stroke-linecap="round"/>
+  <ellipse cx="225" cy="337" rx="16" ry="7" fill="#ffa5b8" opacity=".8"/><ellipse cx="366" cy="327" rx="16" ry="7" fill="#ffa5b8" opacity=".8"/>
+  <path d="M267 410l37 27 36 -31" fill="none" stroke="#d5a1f6" stroke-width="11" stroke-linecap="round"/>
+  <use href="#sakura" transform="translate(384 171) scale(.7)"/>
+</g>
+<!-- tanuki sticker -->
+<g transform="rotate(7 590 450)">
+  <ellipse cx="590" cy="454" rx="158" ry="144" fill="#fff" opacity=".97"/>
+  <path d="M470 407L455 298Q493 310 522 332L657 337Q688 300 724 289L709 408" fill="#a16d5c" stroke="#5d3e63" stroke-width="8" stroke-linejoin="round"/>
+  <ellipse cx="591" cy="437" rx="139" ry="118" fill="url(#tanuki)" stroke="#5d3e63" stroke-width="8"/>
+  <ellipse cx="522" cy="444" rx="65" ry="48" fill="#70465a" transform="rotate(-12 522 444)"/>
+  <ellipse cx="654" cy="439" rx="65" ry="48" fill="#70465a" transform="rotate(12 654 439)"/>
+  <ellipse cx="590" cy="467" rx="75" ry="67" fill="#fff0dd"/>
+  <path d="M551 431q18 19 38 0M609 431q18 19 38 0" fill="none" stroke="#2c223e" stroke-width="9" stroke-linecap="round"/>
+  <ellipse cx="589" cy="469" rx="17" ry="12" fill="#483047"/>
+  <path d="M590 483q-9 18 -23 10M590 483q9 18 23 10" fill="none" stroke="#483047" stroke-width="6" stroke-linecap="round"/>
+  <ellipse cx="490" cy="473" rx="20" ry="10" fill="#fc9fad"/><ellipse cx="688" cy="473" rx="20" ry="10" fill="#fc9fad"/>
+  <path d="M580 336Q558 303 595 282Q620 310 598 335" fill="#91b179" stroke="#fff" stroke-width="5"/>
+  <use href="#sakura" transform="translate(597 559) scale(.65)"/>
+</g>
+<!-- sticker corners -->
+<rect x="35" y="25" width="750" height="630" rx="32" fill="none" stroke="#d994f8" stroke-opacity=".45" stroke-width="3"/>
+<g fill="#ffeaff" opacity=".85"><circle cx="106" cy="415" r="4"/><circle cx="725" cy="140" r="6"/><circle cx="449" cy="80" r="4"/><circle cx="360" cy="600" r="4"/></g>
+</svg>
