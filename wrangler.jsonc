@@ -53,5 +53,9 @@
         }
       ]
     }
+  },
+  "keep_vars": true,
+  "vars": {
+    "CUSTOMER_AUTH_ENABLED": "true"
   }
 }
