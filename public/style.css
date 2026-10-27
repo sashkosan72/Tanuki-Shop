@@ -1284,6 +1284,13 @@ button:disabled {
 }
 .member-benefit h3 {margin:10px 0;color:#513369;font-size:21px;}
 .member-benefit p {margin:0;color:#786a82;line-height:1.65;font-size:14px;}
+.member-benefit-link {
+  display:inline-flex;align-items:center;margin-top:16px;
+  color:#7843a6;font-size:14px;font-weight:800;text-decoration:underline;
+  text-underline-offset:3px;
+}
+.member-benefit-link:hover {color:#542a80;}
+.member-benefit-link:focus-visible {outline:3px solid #7843a6;outline-offset:4px;border-radius:3px;}
 .product-card.catalog-reveal-pending {opacity:0;transform:translateY(18px) scale(.985);}
 .product-card.catalog-reveal-visible {
   opacity:1;transform:translateY(0) scale(1);
