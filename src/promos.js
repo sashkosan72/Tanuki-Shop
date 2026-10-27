@@ -55,7 +55,7 @@ async function parseBody(req){
 }
 function dateOrNull(x){
  if(x===null||x==="")return null;
- if(typeof x!=="string"||!/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z$/.test(x)||!Number.isFinite(Date.parse(x)))throw Error("Дата має бути у форматі UTC ISO 8601.");
+ if(typeof x!=="string"||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(x)||!Number.isFinite(Date.parse(x)))throw Error("Дата має бути у форматі UTC ISO 8601.");
  return x;
 }
 function validateAdminBody(body){
@@ -72,7 +72,7 @@ function validateAdminBody(body){
 }
 export async function adminPromos(request,env){
  const method=request.method,path=new URL(request.url).pathname;
- const match=path.match(/^\\/api\\/admin\\/promos(?:\\/([A-Za-z0-9_-]{3,32}))?$/);
+ const match=path.match(/^\/api\/admin\/promos(?:\/([A-Za-z0-9_-]{3,32}))?$/);
  if(!match)return fail("Маршрут не знайдено.",404);
  const id=match[1]||null;
  try{
