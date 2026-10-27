@@ -299,6 +299,7 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
     <button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
     <button class="tab secondary" data-tab="productsTab" type="button">📦 Товари</button>
     <button class="tab secondary" data-tab="partnersTab" type="button">🤝 Партнери</button>
+    <button class="tab secondary" data-tab="promosTab" type="button">🎟️ Промокоди</button>
     <button class="tab secondary" data-tab="supportTab" type="button">💬 Підтримка</button>
   </nav>
 
@@ -479,6 +480,32 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
   </section>
 
   <p id="dashboardError" class="error" role="alert"></p>
+</section>
+<section id="promosTab" class="hidden">
+  <div class="panel">
+    <h2>🎟️ Промокоди</h2>
+    <p class="muted">Нова система промокодів тестується. Активація для покупців керується окремим прапорцем PROMO_CODES_ENABLED.</p>
+    <p id="promosMessage" role="status" aria-live="polite"></p>
+    <div class="actions"><button type="button" id="promosRefresh">Оновити список</button></div>
+    <div id="promosList" class="orders"></div>
+    <form id="promoForm">
+      <h3>Створити або змінити промокод</h3>
+      <div class="filter-grid">
+        <label class="field">Код (латиниця, 3–32 символи)<input id="promoCode" required minlength="3" maxlength="32" pattern="[A-Za-z0-9_-]{3,32}"></label>
+        <label class="field">Тип знижки<select id="promoType"><option value="percent">Відсоток (%)</option><option value="fixed">Сума (₴)</option></select></label>
+        <label class="field">Знижка<input id="promoValue" type="number" min="1" max="100000000" step="1" required></label>
+        <label class="field">Мінімальна сума замовлення, ₴<input id="promoMinimum" type="number" min="0" value="0" step="1" required></label>
+        <label class="field">Максимум використань (порожньо — без ліміту)<input id="promoMaxUses" type="number" min="1" step="1"></label>
+        <label class="field">Початок (UTC, необов'язково)<input id="promoStart" type="datetime-local"></label>
+        <label class="field">Завершення (UTC, необов'язково)<input id="promoEnd" type="datetime-local"></label>
+      </div>
+      <label class="check-line"><input type="checkbox" id="promoActive"> Активний промокод</label>
+      <div class="actions">
+        <button id="promoSave" type="submit">Зберегти промокод</button>
+        <button id="promoNew" type="button" class="secondary">Новий промокод</button>
+      </div>
+    </form>
+  </div>
 </section>
 </main>
 
@@ -1378,6 +1405,7 @@ partnerForm.addEventListener('submit',async event=>{
   }
 })();
 </script>
+<script src="/admin-promos.js" defer></script>
 </body>
 </html>
 
