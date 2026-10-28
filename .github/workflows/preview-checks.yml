@@ -42,7 +42,7 @@ jobs:
           assert.match(html,/href="\/privacy\//);
           assert.match(html,/href="\/cookies\//);
           assert.match(html,/id="promoCode"/);
-          assert.match(html,/src="\/tanuki-logo.svg"/);
-          assert.match(readFileSync('dist-preview/preview.js','utf8'),/tanuki-logo\.svg/);
+          assert.match(html,/src="\/tanuki-logo.png"/);
+          assert.match(readFileSync('dist-preview/preview.js','utf8'),/tanuki-logo\.png/);
           console.log('Brand, legal pages, promotion UI and bundled Preview assets verified');
           NODE
