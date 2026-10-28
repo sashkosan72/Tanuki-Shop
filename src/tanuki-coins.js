@@ -52,6 +52,8 @@ export async function noteOrderStatus(env,orderId,status){
     // Cancellation/return invalidates previously earned Coins without touching other accounts.
     await env.DB.prepare(`UPDATE loyalty_awards SET reversed_at=CURRENT_TIMESTAMP
       WHERE order_id=? AND reversed_at IS NULL`).bind(orderId).run();
+    await env.DB.prepare(`UPDATE loyalty_spends SET refunded_at=CURRENT_TIMESTAMP
+      WHERE order_id=? AND refunded_at IS NULL`).bind(orderId).run();
   }
 }
 // Reconcile on authenticated wallet reads. No client-supplied customer_id, amount or order_id.
@@ -98,7 +100,7 @@ export async function previewWallet(env,customer){
       `).bind(o.order_id,id,kind,points,o.completed_at,o.completed_at,o.order_id).run();
     }
   }
-  const [available,legacy,awards,legacyHistory]=await Promise.all([
+  const [available,legacy,awards,legacyHistory,spent]=await Promise.all([
     env.DB.prepare(`
       SELECT COALESCE(SUM(a.points),0) AS coins FROM loyalty_awards a
       JOIN orders o ON o.id=a.order_id
@@ -110,7 +112,10 @@ export async function previewWallet(env,customer){
       FROM loyalty_awards a JOIN orders o ON o.id=a.order_id
       WHERE a.customer_id=? ORDER BY a.id DESC LIMIT 20`).bind(id).all(),
     env.DB.prepare(`SELECT points_delta,reason,created_at FROM customer_wallet_transactions
-      WHERE customer_id=? ORDER BY id DESC LIMIT 20`).bind(id).all()
+      WHERE customer_id=? ORDER BY id DESC LIMIT 20`).bind(id).all(),
+    env.DB.prepare(`SELECT COALESCE(SUM(s.points),0) AS coins FROM loyalty_spends s
+      JOIN orders o ON o.id=s.order_id
+      WHERE s.customer_id=? AND s.refunded_at IS NULL AND o.status!='cancelled'`).bind(id).first()
   ]);
   const now=Date.now();
   const history=(awards.results||[]).map(a=>({
@@ -122,9 +127,9 @@ export async function previewWallet(env,customer){
   }));
   for(const x of legacyHistory.results||[])history.push({delta:Number(x.points_delta),reason:String(x.reason||'').slice(0,160),createdAt:x.created_at,status:'legacy'});
   const tier=coinsTier(completedSpend);
-  return {ok:true,points:Math.max(0,Number(available?.coins||0)+Number(legacy?.points||0)),
-    pending,transactions:history.slice(0,20),enabled:true,redemptionEnabled:false,
+  return {ok:true,points:Math.max(0,Number(available?.coins||0)-Number(spent?.coins||0)+Number(legacy?.points||0)),
+    pending,transactions:history.slice(0,20),enabled:true,redemptionEnabled:true,
     tier:tier.name,percent:tier.percent,completedSpend,nextTierAt:tier.nextAt,
     rules:COINS_RULES,milestoneRewardsConfigured:gifts.configured,
-    currency:'bonus_points',message:'Тестова програма Tanuki Coins у Preview. Списання ще недоступне.'};
+    currency:'bonus_points',message:'Тестова програма Tanuki Coins у Preview. Списання доступне лише в тестовому магазині.'};
 }
