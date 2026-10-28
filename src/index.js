@@ -2313,7 +2313,11 @@ async function createOrder(request, env) {
       message.includes("недоступний") ||
       message.includes("Недостатньо") ||
       message.includes("перевищувати") ||
-      message.includes("Некоректна")
+      message.includes("Некоректна") ||
+      message.includes("Tanuki Coins") ||
+      message.includes("Промокод і Tanuki") ||
+      message.includes("Можна списати") ||
+      message.includes("Увійдіть через Telegram")
     ) {
       return json({
         ok: false,
