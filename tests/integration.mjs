@@ -58,8 +58,16 @@ await sql("DELETE FROM customer_request_limits");
 for(let i=0;i<40;i++)await call(endpoint,{},401);
 await call(endpoint,{},429);
 await sql("DELETE FROM customer_request_limits");
-const order={customerName:'QA Only',customerPhone:'0000000000',customerCity:'Тест',customerAddress:'Тестова адреса',items:[{id:'qa-sticker',quantity:2,price:1}]};
-const {d:ordered}=await call('/api/orders',order,201);assert.equal(ordered.total,160);checks++;
+const order={customerName:'QA Only',customerPhone:'0000000000',customerCity:'Тест',customerAddress:'Тестова адреса',shippingMethod:'nova_poshta',items:[{id:'qa-sticker',quantity:2,price:1}]};
+await call('/api/orders',{...order,shippingMethod:'invalid'},400);
+await call('/api/orders',{...order,shippingMethod:''},400);
+const {d:ordered}=await call('/api/orders',order,201);
+assert.equal(ordered.shipping_method,'nova_poshta');checks++;
+assert.equal((await db.prepare('SELECT shipping_method FROM orders WHERE id=?').bind(ordered.order_id).first()).shipping_method,'nova_poshta');checks++;
+const ukr=await call('/api/orders',{...order,shippingMethod:'ukrposhta',items:[{id:'qa-sticker',quantity:1}]},201);
+assert.equal(ukr.d.shipping_method,'ukrposhta');checks++;
+assert.equal((await db.prepare('SELECT shipping_method FROM orders WHERE id=?').bind(ukr.d.order_id).first()).shipping_method,'ukrposhta');checks++;
+assert.equal(ordered.total,160);checks++;
 const linkedTelegram=await db.prepare("INSERT INTO telegram_customers(telegram_id) VALUES('777')").run();
 const linkedId=linkedTelegram.meta.last_row_id;
 const createdOrder=await db.prepare("SELECT id FROM orders WHERE order_number=?").bind(ordered.orderNumber).first();
@@ -73,7 +81,7 @@ assert.ok(createdOrder);checks++;
  assert.deepEqual(unowned.d.orders,[]);checks++;
 }
 
-assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,8);checks++;
+assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,7);checks++;
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:99}]},400);
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:2},{id:'qa-soldout',quantity:1}]},400);
 assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,8);checks++;
