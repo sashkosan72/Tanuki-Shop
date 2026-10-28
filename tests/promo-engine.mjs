@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import {quotePromo,normalizePromoCode} from "../src/promo-engine.js";
+const now=new Date("2026-10-28T12:00:00Z");
+const base={code:"TANUKI10",active:true,type:"percent",value:10,minimumOrder:100,startsAt:null,expiresAt:null};
+assert.equal(normalizePromoCode(" tanuki10 "),"TANUKI10");
+for(const bad of ["",null,"ab","<script>","🚨"])assert.equal(normalizePromoCode(bad),null);
+assert.deepEqual(quotePromo(base,199,now),{ok:true,code:"TANUKI10",subtotal:199,discount:19,total:180});
+assert.deepEqual(quotePromo({...base,type:"fixed",value:1000},199,now),{ok:true,code:"TANUKI10",subtotal:199,discount:199,total:0});
+assert.equal(quotePromo(base,99,now).reason,"minimum_order");
+assert.equal(quotePromo({...base,active:false},199,now).reason,"inactive");
+assert.equal(quotePromo({...base,startsAt:"2026-11-01T00:00:00Z"},199,now).reason,"not_started");
+assert.equal(quotePromo({...base,expiresAt:"2026-10-28T12:00:00Z"},199,now).reason,"expired");
+assert.equal(quotePromo({...base,value:110},199,now).reason,"invalid_rule");
+assert.equal(quotePromo({...base,type:"fixed",value:-10},199,now).reason,"invalid_rule");
+assert.throws(()=>quotePromo(base,-1,now),TypeError);
+assert.throws(()=>quotePromo(base,1.2,now),TypeError);
+console.log("PASS: isolated promo quote tests");
