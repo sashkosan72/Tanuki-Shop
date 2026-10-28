@@ -21,6 +21,7 @@ Status: **BLOCKED — DO NOT MERGE OR DEPLOY YET**.
 ## Explicit blockers on 2026-10-28
 - No production-equivalent PR11 Telegram sign-in test.
 - No confirmed native Workers Assets upload/deploy path for current connector-only environment; directly PUTting JS would lose static assets or bindings.
-- Merchant/legal launch details and production shipping API secret not confirmed.
+- Merchant/legal launch details not confirmed.
+- Production `NOVA_POSHTA_API_KEY` **verified present as a Cloudflare secret_text binding** on 2026-10-28; secret value was not viewed or copied.
 
 Current Production `tanukishop.pp.ua` is intentionally unchanged.
