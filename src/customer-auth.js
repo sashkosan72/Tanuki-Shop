@@ -36,7 +36,7 @@ async function rate(env,req,action,max,windowSeconds){
   const row=await env.DB.prepare("SELECT attempts FROM customer_request_limits WHERE key_hash=?").bind(key).first();
   return Number(row?.attempts||0)<=max;
 }
-async function currentUser(req,env){
+export async function currentUser(req,env){
   const token=getCookie(req);if(!/^[0-9a-f]{64}$/.test(token))return null;
   return env.DB.prepare("SELECT a.id,a.name,a.email,a.telegram_id FROM customer_sessions s JOIN customer_accounts a ON a.id=s.customer_id WHERE s.token_hash=? AND s.expires_at>datetime('now') AND a.verified_at IS NOT NULL LIMIT 1")
     .bind(await sha(token)).first();
