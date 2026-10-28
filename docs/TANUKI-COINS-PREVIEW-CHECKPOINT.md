@@ -1,39 +1,32 @@
-# Tanuki Coins — Preview-only implementation checkpoint
+# Tanuki Coins — Preview-only implementation checkpoint (2026-10-28)
 
-**Never apply this migration or deploy feature to Production.**
+**Release decision: NOT READY for Production. Feature must remain off until staged E2E testing is complete.**
 
-## Approved terms
-- Start: 2% before 1000 UAH historic completed purchases.
-- Fan: 3% after 1000 UAH; VIP: 5% after 5000 UAH.
-- Only new, Preview-flagged, completed orders tracked after feature activation.
-- Approved one-time milestones: order #1 +10 Coins, #3 +20, #5 +40, #10 +70.
-- 1 Coin = 1 UAH *potential* discount; redemption planned, not implemented.
-- Coins vest 14 days after completed status; expire 180 days after vesting.
-- Base earnings cap: 100 Coins/order and 300 Coins/vesting month.
-- Max redemption: 20% of eligible merchandise, never shipping.
-- Redemptions cannot be combined with promo codes, are not transferable/withdrawable.
-- Refunds and cancellations must reverse awards and restore spent funds fairly.
-- Paid order verification is manual; setting a status to completed must happen only after payment is confirmed.
+## Approved rules
+- Start 2% until 999 UAH lifetime completed purchases; Fan 3% from 1000 UAH; VIP 5% from 5000 UAH.
+- Milestone gifts: +10/+20/+40/+70 Coins on purchase numbers 1/3/5/10.
+- Base award cap: 100 Coins per order and 300 Coins per vesting month.
+- Coins vest 14 days after an explicitly completed order and expire 180 days later.
+- Redemption: 1 Coin = 1 UAH, maximum 20% of merchandise amount, not with a promotion code, never shipping.
+- No retroactive backfill: only orders marked completed while the Preview feature flag is enabled are counted. No bank-card payouts or Coin transfers.
 
-## Implemented in this branch
-- `src/tanuki-coins.js` — tier calculation, bonus rules, milestone configuration, Preview guard, completed/cancelled status tracking, read-time award issuance and wallet summary.
-- `migrations/20261028_tanuki_coins_preview.sql` — isolated D1 award ledger / completion timestamps.
-- `src/customer-auth.js` — authenticated customer wallet uses Preview loyalty engine only when `ENVIRONMENT=preview` AND `TANUKI_COINS_ENABLED=true`.
-- `src/index.js` — admin and Telegram status changes notify the Preview loyalty engine.
-- `tests/tanuki-coins.mjs` — rules and production-off assertions.
-- `tests/integration.mjs` — isolated D1 migration included.
-- `npm test` passes in GitHub Actions as of 2026-10-28.
+## Implemented and verified in isolated local Workers + D1 CI
+- Preview-only guarded earnings, one-time order-completion records, tier rules, milestone rewards and expiry.
+- Signed Telegram-session based wallet balance and reward history, with pending and expiry information in account UI.
+- Authenticated Preview checkout accepts `coins_to_spend`; all limits and promo exclusions are re-verified server side, never trusted from the browser.
+- Database `loyalty_spends` ledger tracks per-award consumption; SQL trigger enforces identity, expiry and remaining balance at insert time (protecting concurrent redemptions).
+- D1 order insertion, order items and award spend records are in a single batch transaction. Stock reservation rollbacks are handled by existing checkout error path.
+- Status cancellation marks award reversals and refunds spent Coins, keeping the original order history.
+- Automated integration covers real test checkout with 10 Coins, a 20% rejection, duplicate/overspend attempt, refund on cancellation, unrelated-user rejection, and production feature-flag protection.
+- Latest CI verified green: https://github.com/sashkosan72/Tanuki-Shop/actions/runs/40737453709
 
-## NOT FINISHED; do not enable yet
-- Redemption at checkout and rollback/reconciliation for cancelled/refunded orders.
-- Race-safe per-month cap under concurrent reads (current reconciliation is best-effort, not a transactional issuance engine).
-- Explicit validation that status 'completed' implies actual payment received (manual verification).
-- UI for pending/expired coins and test of real Preview Telegram login with dedicated Preview-only bot secrets.
-- Full integration tests for expiry, repeated completion callbacks, ownership isolation, reversing earned/spent Coins, and monthly cap under concurrency.
-- Production migrations, deployment and credentials — explicitly out of scope.
+## Outstanding before enabling on a public Preview
+1. End-to-end test on a dedicated new Worker backed by disposable Preview D1, including actual Telegram login with Preview-only bot credentials. Existing Preview PR6 and Production bot secrets must not be moved or exposed.
+2. Harden issuance under simultaneous wallet reads: current monthly cap is non-transactional; make monthly award allocation atomic before real money value can accrue.
+3. Handle cancellation/refund of an **original award-generating order** after the awarded Coins have already been spent elsewhere; resolve debt/recovery policy. Current ledger prevents reusing reversed awards, but further credit/debt reconciliation is necessary.
+4. Ensure staff can only mark orders 'completed' after verified payment; payment via IBAN has no automatic payment confirmation.
+5. Add explicit customer confirmation of non-combinable promo/Coins states and broader accessibility/mobile/real-browser QA.
+6. Verify migration with rollback on disposable Preview D1 before any release plan. Production database and its 49 existing orders remain untouched.
 
-## Deployment guard
-Feature is off by default. Even if `TANUKI_COINS_ENABLED=true` accidentally appears on Production, `coinsEnabled` requires `ENVIRONMENT=preview`. No Production D1 mutation allowed. Existing `customer_wallet_transactions` table is never rewritten by this feature.
-
-## Safe next step
-Complete redemption model and tests in this branch first. Then run Preview migration only on isolated D1 and deploy to a new Preview worker whose script is built with native assets and isolated bindings. Verify an end-to-end synthetic order and status transitions, preserving all existing orders. Only later consider a separate production launch proposal.
+## Scope protection
+This branch was created from feature/logo-promocodes-20261028 (not main). There is no release/merge to Production. The opt-in requires **both** `ENVIRONMENT='preview'` and `TANUKI_COINS_ENABLED='true'`; ordinary Preview/Production traffic stays disabled. The migration file is `migrations/20261028_tanuki_coins_preview.sql`.
