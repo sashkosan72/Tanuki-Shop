@@ -14,7 +14,10 @@ for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accoun
  const triggerIndex=source.indexOf('CREATE TRIGGER');
  const plain=triggerIndex<0?source:source.slice(0,triggerIndex);
  for(const s of plain.split(';').filter(s=>s.trim()))await sql(s);
- if(triggerIndex>=0)await sql(source.slice(triggerIndex).trim().replace(/;\\s*$/,''));
+ if(triggerIndex>=0){
+   const triggers=source.slice(triggerIndex).split(/(?=CREATE TRIGGER IF NOT EXISTS )/).filter(x=>x.trim());
+   for(const trigger of triggers)await sql(trigger.trim().replace(/;\s*$/,''));
+ }
 }
 await call('/api/health'); await call('/api/products');await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);await call('/api/customer/orders',undefined,401);
 const stamp=Math.floor(Date.now()/1000);
