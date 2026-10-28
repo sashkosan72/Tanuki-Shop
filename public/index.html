@@ -431,6 +431,24 @@
         </select>
       </label>
       <p class="promo-hint">Вартість і термін доставки уточнюються перед відправленням.</p>
+      <div id="novaDirectory" hidden>
+        <label>Область Нової пошти
+          <select id="novaArea"><option value="">Оберіть область</option></select>
+        </label>
+        <label>Пошук міста
+          <input id="novaCitySearch" type="search" placeholder="Введіть назву міста" minlength="2" maxlength="80" autocomplete="off">
+        </label>
+        <label>Місто
+          <select id="novaCity"><option value="">Оберіть місто</option></select>
+        </label>
+        <label>Тип доставки
+          <select id="novaType"><option value="branch">Відділення</option><option value="postomat">Поштомат</option></select>
+        </label>
+        <label>Відділення або поштомат
+          <select id="novaWarehouse"><option value="">Оберіть пункт отримання</option></select>
+        </label>
+        <p id="novaNotice" class="promo-hint" role="status" aria-live="polite"></p>
+      </div>
       <label>
         Адреса / відділення
         <input type="text" id="customerAddress" required
@@ -1046,6 +1064,73 @@
       $("checkoutTotal").textContent = formatPrice(data.total);
     } catch(error) {if(requestId===promoRequest)$("promoNotice").textContent = error.message||"Помилка зв’язку.";}
     finally {button.disabled = false;}
+  });
+
+
+  // Address directory is read-only. The API key is kept in the Worker.
+  const nova = {area: $("novaArea"), city: $("novaCity"), warehouse: $("novaWarehouse"),
+    search: $("novaCitySearch"), type: $("novaType"), notice: $("novaNotice")};
+  let requestSequence=0, novaEnabled=false, searchTimer=null;
+  function option(select, value, label) { const o=document.createElement("option");o.value=value;o.textContent=label;select.append(o); }
+  function resetSelect(select, label) {select.replaceChildren();option(select,"",label);}
+  async function lookupNova(type,params={}) {
+    const query=new URLSearchParams({type,...params});
+    const response=await fetch("/api/shipping/nova-poshta?"+query.toString());
+    const data=await response.json();
+    if(!response.ok||!data.ok)throw Error(data.error||"Довідник недоступний");
+    return data;
+  }
+  function novaReset(){requestSequence++;novaEnabled=false;$("novaDirectory").hidden=true;
+    nova.notice.textContent="";resetSelect(nova.area,"Оберіть область");resetSelect(nova.city,"Оберіть місто");
+    resetSelect(nova.warehouse,"Оберіть пункт отримання");nova.search.value="";
+    $("customerAddress").readOnly=false;$("customerCity").readOnly=false;}
+  async function setShippingMode(){
+    novaReset();
+    if($("shippingMethod").value!=="nova_poshta")return;
+    $("novaDirectory").hidden=false;
+    nova.notice.textContent="Завантажуємо області…";
+    try{
+      const {items}=await lookupNova("areas");
+      for(const item of items)option(nova.area,item.ref,item.name);
+      novaEnabled=true;nova.notice.textContent="Оберіть область і введіть назву міста.";
+    }catch(error){nova.notice.textContent=error.message+" Вкажіть адресу вручну нижче.";}
+  }
+  $("shippingMethod").addEventListener("change",setShippingMode);
+  nova.area.addEventListener("change",()=>{
+    requestSequence++;resetSelect(nova.city,"Оберіть місто");resetSelect(nova.warehouse,"Оберіть пункт отримання");
+    nova.search.value="";$("customerCity").value="";$("customerAddress").value="";
+  });
+  nova.search.addEventListener("input",()=>{
+    clearTimeout(searchTimer);const token=++requestSequence;
+    resetSelect(nova.city,"Оберіть місто");resetSelect(nova.warehouse,"Оберіть пункт отримання");
+    const q=nova.search.value.trim();if(!nova.area.value||q.length<2||!novaEnabled)return;
+    searchTimer=setTimeout(async()=>{
+      try{
+        const {items}=await lookupNova("cities",{area:nova.area.value,q});
+        if(token!==requestSequence)return;
+        for(const item of items)option(nova.city,item.ref,item.name);
+        nova.notice.textContent=items.length?"Виберіть місто.":"Місто не знайдено.";
+      }catch(e){if(token===requestSequence)nova.notice.textContent=e.message;}
+    },350);
+  });
+  async function loadWarehouses(){
+    const token=++requestSequence;resetSelect(nova.warehouse,"Оберіть пункт отримання");
+    const selected=nova.city.selectedOptions[0];$("customerCity").value=nova.city.value?selected.textContent:"";
+    $("customerAddress").value="";
+    if(!nova.city.value)return;
+    try{
+      const {items}=await lookupNova("warehouses",{city:nova.city.value,filter:nova.type.value});
+      if(token!==requestSequence)return;
+      for(const item of items)option(nova.warehouse,item.ref,item.name);
+      nova.notice.textContent=items.length?"Виберіть пункт отримання.":"Немає пунктів у першій сторінці довідника; можна ввести адресу вручну.";
+    }catch(e){if(token===requestSequence)nova.notice.textContent=e.message+" Вкажіть адресу вручну.";}
+  }
+  nova.city.addEventListener("change",loadWarehouses);
+  nova.type.addEventListener("change",loadWarehouses);
+  nova.warehouse.addEventListener("change",()=>{
+    if(!nova.warehouse.value)return;
+    $("customerAddress").value=nova.warehouse.selectedOptions[0].textContent;
+    nova.notice.textContent="Обраний пункт додано в адресу доставки.";
   });
 
   checkoutForm.addEventListener("submit", async event => {
