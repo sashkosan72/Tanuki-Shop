@@ -22,10 +22,20 @@ export async function handleNovaPoshtaLookup(request,env){
   if(kind==="cities"&&(!refPattern.test(area)||search.length<2))return reply({ok:false,error:"Спочатку виберіть область і введіть хоча б 2 літери міста."},400);
   if(kind==="warehouses"&&!refPattern.test(city))return reply({ok:false,error:"Спочатку виберіть місто."},400);
   const calledMethod=kind==="areas"?"getAreas":kind==="cities"?"getCities":"getWarehouses";
-  const methodProperties=kind==="areas"?{}:kind==="cities"?{FindByString:search,Page:"1",Limit:"100"}:{CityRef:city,Page:String(page),Limit:"100"};
+  const filter=url.searchParams.get("filter");
+  const limit=30;
+  // Search at Nova Poshta BEFORE pagination. Filtering a mixed page locally can
+  // otherwise show no postomats even when hundreds exist further in the city.
+  const term=filter==="postomat"?"Поштомат":filter==="branch"?"Відділення":"";
+  const needle=kind==="warehouses" ? (search
+    ? (/^\\d{1,5}$/.test(search)&&term ? term+" №"+search : search)
+    : term) : "";
+  const methodProperties=kind==="areas"?{}:kind==="cities"
+    ? {FindByString:search,Page:"1",Limit:"100"}
+    : {CityRef:city,Page:String(page),Limit:String(limit),...(needle?{FindByString:needle}:{})};
   try{
     const controller=new AbortController();
-    const timeout=setTimeout(()=>controller.abort(),8000);
+    const timeout=setTimeout(()=>controller.abort(),12000);
     let response;
     try{
       response=await fetch(apiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
@@ -37,14 +47,14 @@ export async function handleNovaPoshtaLookup(request,env){
     if(!result?.success||!Array.isArray(result.data))return reply({ok:false,error:"Нова пошта не повернула дані. Спробуйте ще раз."},502);
     let rows=result.data;
     if(kind==="cities")rows=rows.filter(row=>!row.Area||row.Area===area);
-    const filter=url.searchParams.get("filter");
+    // Keep a second check in case the provider returns mixed warehouse types.
     if(kind==="warehouses"&&["branch","postomat"].includes(filter))rows=rows.filter(row=>isPostomat(row)===(filter==="postomat"));
     const items=rows.slice(0,150).map(row=>({
       ref:short(row.Ref,40),name:short(row.Description,220),
       ...(kind==="cities"?{areaRef:short(row.Area,40)}:{}),
       ...(kind==="warehouses"?{postomat:isPostomat(row),number:short(row.Number,16)}:{})
     })).filter(item=>refPattern.test(item.ref)&&item.name);
-    return reply({ok:true,items,page,hasMore:kind==="warehouses"&&result.data.length>=100});
+    return reply({ok:true,items,page,hasMore:kind==="warehouses"&&result.data.length>=limit});
   }catch(error){
     console.error("Nova Poshta lookup failed",error?.name||"error");
     return reply({ok:false,error:"Немає зв'язку з Новою поштою. Можна вказати відділення вручну."},502);
