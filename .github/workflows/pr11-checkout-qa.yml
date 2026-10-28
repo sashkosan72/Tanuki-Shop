@@ -1,0 +1,51 @@
+name: Tanuki Shop PR11 — Live checkout QA
+on:
+  push:
+    branches: [feature/logo-promocodes-20261028]
+    paths: ['.github/workflows/pr11-checkout-qa.yml']
+permissions:
+  contents: read
+jobs:
+  checkout:
+    name: Create one synthetic Preview-only order
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test one real request against Preview D1
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base='https://tanuki-shop-preview-pr11.sashh4051.workers.dev';
+          const products=await (await fetch(base+'/api/products')).json();
+          assert.equal(products.ok,true);
+          const stock=products.products.find(x=>x.id==='qa-sticker');
+          assert.ok(stock && stock.available && stock.stock>=1,'Only synthetic QA inventory may be used');
+          const order={
+            customerName:'QA Preview Checkout 2026-10-28',
+            customerPhone:'0000000000',
+            customerCity:'Дніпро',
+            customerAddress:'Тестове відділення — автоматичний тест, НЕ відправляти',
+            customerComment:'PREVIEW_QA_ONLY_AUTOMATED_CLEANUP',
+            shippingMethod:'nova_poshta',
+            items:[{id:'qa-sticker',quantity:1}]
+          };
+          const r=await fetch(base+'/api/orders',{
+            method:'POST',
+            headers:{Origin:base,'X-Tanuki-Request':'1','Content-Type':'application/json'},
+            body:JSON.stringify(order)
+          });
+          const data=await r.json();
+          assert.equal(r.status,201,JSON.stringify(data));
+          assert.equal(data.ok,true);
+          assert.equal(data.shipping_method,'nova_poshta');
+          assert.match(data.order_number,/^TAN-/);
+          assert.equal(data.total_amount,80);
+          console.log('QA_ORDER_NUMBER='+data.order_number);
+          console.log('QA_ORDER_ID='+data.order_id);
+          const after=await (await fetch(base+'/api/products')).json();
+          assert.equal(after.products.find(x=>x.id==='qa-sticker').stock,stock.stock-1);
+          console.log('PASS: Preview-only Nova Poshta checkout persisted and stock decremented. Cleanup via Cloudflare D1 required.');
+          NODE
