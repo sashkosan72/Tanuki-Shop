@@ -29,7 +29,7 @@ small{color:#e1c4ec}a{color:#f4b9ff}
   <div id="orders" class="info" aria-live="polite">Завантажуємо замовлення…</div>
   <button class="action" id="logout" type="button">Вийти</button>
 </section>
-<p><small>Бонусна програма ще готується до запуску. Промокод можна застосувати під час оформлення замовлення.</small></p>
+<p id="bonusDisclosure"><small>Tanuki Coins проходить тестування. До запуску бонуси не можна списувати під час замовлення.</small></p>
 </main>
 <script>
 (()=>{'use strict';
@@ -51,7 +51,14 @@ async function profile(){
     if(!wallet.ok)throw Error();
     const balance=await wallet.json();
     if(!balance.ok||!Number.isFinite(balance.points)||!Array.isArray(balance.transactions))throw Error();
-    $('points').textContent='Бонуси: '+balance.points+' · програма ще не запущена';
+    if(balance.enabled===true){
+      const tier=({Start:'🌱 Start',Fan:'⭐ Fan',VIP:'👑 VIP'})[balance.tier]||'Start';
+      const pending=Math.max(0,Number(balance.pending)||0);
+      $('points').textContent='🪙 Tanuki Coins: '+balance.points+' · очікується: '+pending+' · рівень '+tier+' ('+balance.percent+'%).'+(balance.redemptionEnabled?'':' Списання поки недоступне.');
+      $('bonusDisclosure').textContent='Бонуси нараховуються після завершення замовлення та періоду очікування 14 днів. Діють 180 днів після нарахування.';
+    }else{
+      $('points').textContent='Бонуси: '+balance.points+' · програма ще не запущена';
+    }
     if(!balance.transactions.length){
       historyBox.textContent='Операцій ще немає.';
     }else{
@@ -59,7 +66,9 @@ async function profile(){
         if(!Number.isFinite(entry.delta))continue;
         const item=document.createElement('p');
         const sign=entry.delta>0?'+':'';
-        item.textContent=sign+entry.delta+' балів · '+String(entry.reason||'Операція')+' · '+String(entry.createdAt||'');
+        const status=({expired:' · термін дії завершився',reversed:' · скасовано',legacy:' · попередній баланс'})[entry.status]||'';
+        const expires=entry.expiresAt?' · до '+String(entry.expiresAt).slice(0,10):'';
+        item.textContent=sign+entry.delta+' 🪙 · '+String(entry.reason||'Операція')+' · '+String(entry.createdAt||'')+expires+status;
         historyBox.append(item);
       }
       if(!historyBox.childElementCount)historyBox.textContent='Операцій ще немає.';
