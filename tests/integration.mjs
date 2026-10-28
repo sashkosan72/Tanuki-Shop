@@ -52,7 +52,7 @@ await sql("INSERT INTO customer_accounts(name,email,password_salt,password_hash,
 const legacy=await db.prepare("SELECT id FROM customer_accounts WHERE telegram_id='777'").first();
 await db.prepare("INSERT INTO customer_wallet_transactions(customer_id,points_delta,reason) VALUES(?,37,'test')").bind(legacy.id).run();
 login=await call(endpoint,signed({id:777}));assert.equal(login.d.customer.id,legacy.id);assert.equal(login.d.customer.email,'old@example.invalid');checks++;
-cookie=login.r.headers.get('set-cookie').split(';')[0];wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,37);assert.equal(wallet.d.transactions.length,1);assert.equal(wallet.d.transactions[0].delta,37);assert.equal(wallet.d.transactions[0].reason,'test');assert.equal(wallet.d.enabled,true);checks+=5;
+cookie=login.r.headers.get('set-cookie').split(';')[0];wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,0);assert.equal(wallet.d.legacyPoints,37);assert.equal(wallet.d.transactions.length,1);assert.equal(wallet.d.transactions[0].delta,37);assert.equal(wallet.d.transactions[0].reason,'test');assert.equal(wallet.d.enabled,true);checks+=5;
 const unchanged=await db.prepare('SELECT password_hash FROM customer_accounts WHERE id=?').bind(legacy.id).first();assert.equal(unchanged.password_hash,'oldhash');checks++;
 // Concurrent replay: exactly one session, not one per racing request.
 const race=signed({id:888});const results=await Promise.all([200,409].map(()=>mf.dispatchFetch(origin+endpoint,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Tanuki-Request':'1'},body:JSON.stringify(race)})));
@@ -177,7 +177,7 @@ const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCook
  await db.prepare("UPDATE loyalty_order_completions SET completed_at=datetime('now','-15 days') WHERE order_id=?").bind(createdOrder.id).run();
  let coins=await previewWallet(env,customer);
  assert.equal(coins.enabled,true);assert.equal(coins.redemptionEnabled,true);
- assert.equal(coins.points,37+10+3);checks+=3;
+ assert.equal(coins.points,10+3);checks+=3;
  const first=await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=?").bind(createdOrder.id).first();
  assert.equal(first.n,2);checks++;
  // Actual checkout endpoint validates the session, promo exclusion and 20% cap.
@@ -189,21 +189,21 @@ const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCook
  assert.equal(redeemed.coins_spent,10);assert.equal(redeemed.total,70);checks+=2;
  assert.equal((await db.prepare("SELECT SUM(points) AS spent FROM loyalty_spends WHERE order_id=?").bind(redeemed.order_id).first()).spent,10);checks++;
  const spendBalance=(await call('/api/customer/wallet',undefined,200,{Cookie:cookie})).d;
- assert.equal(spendBalance.points,40);checks++;
+ assert.equal(spendBalance.points,3);checks++;
  const secondAttempt=(await call('/api/orders',{...orderCoins,coins_to_spend:10},400,{Cookie:cookie})).d;
  assert.match(secondAttempt.error,/Недостатньо/);checks++;
  await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(redeemed.order_id).run();
  await noteOrderStatus(env,redeemed.order_id,'cancelled');
- assert.equal((await previewWallet(env,customer)).points,50);checks++;
+ assert.equal((await previewWallet(env,customer)).points,13);checks++;
 
 
  coins=await previewWallet(env,customer);
- assert.equal(coins.points,50);checks++;
+ assert.equal(coins.points,13);checks++;
  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=?").bind(createdOrder.id).first()).n,2);checks++;
  await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(createdOrder.id).run();
  await noteOrderStatus(env,createdOrder.id,'cancelled');
  coins=await previewWallet(env,customer);
- assert.equal(coins.points,37);checks++;
+ assert.equal(coins.points,0);assert.equal(coins.legacyPoints,37);checks++;
  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=? AND reversed_at IS NOT NULL").bind(createdOrder.id).first()).n,2);checks++;
  const productionWallet=await import('../src/tanuki-coins.js');
  assert.equal(productionWallet.coinsEnabled({ENVIRONMENT:'production',TANUKI_COINS_ENABLED:'true'}),false);checks++;
