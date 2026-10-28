@@ -77,6 +77,7 @@ assert.ok(createdOrder);checks++;
  const owned=await call('/api/customer/orders',undefined,200,{Cookie:cookie});
  assert.equal(owned.d.orders.length,1);checks++;
  assert.equal(owned.d.orders[0].total,160);checks++;
+ assert.equal(owned.d.orders[0].shippingMethod,'nova_poshta');checks++;
  const unowned=await call('/api/customer/orders',undefined,200,{Cookie:login.r.headers.get('set-cookie').split(';')[0]});
  assert.deepEqual(unowned.d.orders,[]);checks++;
 }
