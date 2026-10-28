@@ -15,6 +15,10 @@ try{
    assert.equal(url,'https://api.novaposhta.ua/v2.0/json/');
    const req=JSON.parse(options.body);
    assert.equal(req.apiKey,'test');
+   if(req.calledMethod==='getWarehouses'){
+     assert.equal(req.methodProperties.Limit,'30');
+     assert.equal(req.methodProperties.FindByString,'Поштомат');
+   }
    return new Response(JSON.stringify({success:true,data:req.calledMethod==='getAreas'?
      [{Ref:'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',Description:'Київська'}]:
      [{Ref:'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',Description:'Поштомат №1'},
