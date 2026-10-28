@@ -1096,7 +1096,12 @@
       novaEnabled=true;nova.notice.textContent="Оберіть область і введіть назву міста.";
     }catch(error){nova.notice.textContent=error.message+" Вкажіть адресу вручну нижче.";}
   }
-  $("shippingMethod").addEventListener("change",setShippingMode);
+  $("shippingMethod").addEventListener("change",()=>{
+    // A destination selected for one courier must not silently carry over to another.
+    $("customerCity").value="";
+    $("customerAddress").value="";
+    setShippingMode();
+  });
   nova.area.addEventListener("change",()=>{
     requestSequence++;resetSelect(nova.city,"Оберіть місто");resetSelect(nova.warehouse,"Оберіть пункт отримання");
     nova.search.value="";$("customerCity").value="";$("customerAddress").value="";
@@ -1211,6 +1216,7 @@
       cart = [];
       updateCart();
       checkoutForm.reset();
+      novaReset();
       closeCheckout();
       showOrderSuccess(result);
     } catch (error) {
