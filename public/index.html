@@ -347,7 +347,7 @@
       <strong>🦝 Tanuki Shop</strong>
       <p>Kawaii & Anime Store</p>
     </div>
-    <nav aria-label="Інформація для покупців"><a href="/terms/">Умови</a> · <a href="/delivery/">Оплата й доставка</a> · <a href="/returns/">Повернення</a> · <a href="/privacy/">Конфіденційність</a> · <a href="/cookies/">Cookies</a></nav>
+    <nav aria-label="Інформація для покупців"><a href="/terms/">Умови</a> · <a href="/delivery/">Оплата й доставка</a> · <a href="/payment/">Реквізити для оплати</a> · <a href="/returns/">Повернення</a> · <a href="/privacy/">Конфіденційність</a> · <a href="/cookies/">Cookies</a></nav>
     <div id="support-chat"><button type="button" id="loadSupportChat">Підтримка: підключити чат</button><p id="chatNotice" role="status">Після натискання буде завантажено чат KeyCRM. <a href="/privacy/">Як обробляються дані</a></p></div>
     <p>© 2026 Tanuki Shop</p>
   </div>
@@ -444,6 +444,7 @@
         <span>Сума замовлення:</span>
         <strong id="checkoutTotal">0 ₴</strong>
       </div>
+      <p class="promo-hint">Оплата за IBAN здійснюється окремо після підтвердження деталей продавцем. <a href="/payment/" target="_blank" rel="noopener">Реквізити</a></p>
       <p class="promo-hint">Для обробки замовлення ми використаємо введені контактні дані. <a href="/privacy/" target="_blank" rel="noopener">Конфіденційність</a> · <a href="/cookies/" target="_blank" rel="noopener">Cookies</a></p>
       <button type="submit" class="checkout-submit">✅ Підтвердити замовлення</button>
     </form>
@@ -935,6 +936,14 @@
       `Дякуємо за покупку в Tanuki Shop! 🦝 Номер замовлення: ${orderNumber}. Сума: ${formatPrice(total)}.`
     );
 
+    const payment = document.createElement("a");
+    payment.href = "/payment/?order=" + encodeURIComponent(orderNumber);
+    payment.className = "checkout-submit";
+    payment.textContent = "💳 Реквізити для оплати замовлення";
+    payment.style.display = "block";
+    payment.style.textAlign = "center";
+    payment.style.textDecoration = "none";
+    // Bank transfer remains manual: never label the order as paid.
     const telegramInfo = makeElement(
       "p",
       "",
@@ -948,6 +957,8 @@
     actions.style.flexDirection = "column";
     actions.style.gap = "12px";
     actions.style.marginTop = "20px";
+
+    actions.appendChild(payment);
 
     if (telegramLink) {
       const link = document.createElement("a");
