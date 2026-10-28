@@ -9,7 +9,7 @@ const db=await mf.getD1Database('DB');
 async function sql(s){return db.prepare(s).run();}
 async function call(path,body,expected=200,headers={}){const r=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','Origin':origin,'X-Tanuki-Request':'1',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const d=await r.json();assert.equal(r.status,expected,`${path}: ${JSON.stringify(d)}`);checks++;return {r,d};}
 try{
-for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql','migrations/20261028_promotions.sql','migrations/20261028_shipping_methods.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
+for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql','migrations/20261028_promotions.sql','migrations/20261028_shipping_methods.sql','migrations/20261028_tanuki_coins_preview.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
 await call('/api/health'); await call('/api/products');await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);await call('/api/customer/orders',undefined,401);
 const stamp=Math.floor(Date.now()/1000);
 function signed(patch={},token='local-test-token'){
