@@ -21,7 +21,7 @@ export function coinsTier(spend){
 export function milestoneAmounts(env){
   const raw=String(env.TANUKI_COINS_MILESTONES||'').trim();
   // Strict 4-number format, never accept JSON supplied from customers.
-  if(!/^\\d{1,3},\\d{1,3},\\d{1,3},\\d{1,3}$/.test(raw))
+  if(!/^[0-9]{1,3},[0-9]{1,3},[0-9]{1,3},[0-9]{1,3}$/.test(raw))
     return {1:10,3:20,5:40,10:70,configured:true};
   const vals=raw.split(',').map(Number);
   if(vals.some(v=>!Number.isSafeInteger(v)||v>500))
