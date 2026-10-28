@@ -85,7 +85,8 @@ export async function previewWallet(env,customer){
       if(coins<1)continue;
       let points=coins;
       if(kind==='base'){
-        const month=String(o.completed_at).slice(0,7);
+        const monthRow=await env.DB.prepare("SELECT substr(datetime(?,'+14 days'),1,7) AS month").bind(o.completed_at).first();
+        const month=monthRow?.month;
         const monthly=await env.DB.prepare(`SELECT COALESCE(SUM(points),0) AS used
           FROM loyalty_awards WHERE customer_id=? AND kind='base'
           AND substr(available_at,1,7)=? `).bind(id,month).first();
