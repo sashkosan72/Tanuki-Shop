@@ -483,6 +483,7 @@ async function notifyTelegram(env, order) {
     `📞 ${escapeHtml(order.customerPhone)}`,
     `🏙 ${escapeHtml(order.customerCity)}`,
     `📍 ${escapeHtml(order.customerAddress)}`,
+    `🚚 ${({nova_poshta:"Нова пошта",ukrposhta:"Укрпошта"})[order.shippingMethod] || "Уточнюється"}`,
     "",
     "🛍 <b>Товари:</b>",
     itemsText,
