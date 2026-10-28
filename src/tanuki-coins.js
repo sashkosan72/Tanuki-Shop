@@ -1,11 +1,11 @@
 // Tanuki Coins (Preview-only). NEVER activate automatically in Production.
 // Monetary values are whole hryvnias; points are whole Coins.
-// Milestone amounts are configured separately: the owner approved the triggers,
-// but has not supplied exact gift amounts. No implicit default gift amounts.
+// Approved milestone rewards: 10/20/40/70 Coins for 1st/3rd/5th/10th purchase.
 export const COINS_RULES=Object.freeze({
   fanAt:1000,vipAt:5000,
   startPercent:2,fanPercent:3,vipPercent:5,
   releaseDays:14,validDays:180,
+  maxBasePerOrder:100,maxBasePerMonth:300,
   redemptionCapPercent:20,
   milestoneOrders:[1,3,5,10]
 });
@@ -22,17 +22,17 @@ export function milestoneAmounts(env){
   const raw=String(env.TANUKI_COINS_MILESTONES||'').trim();
   // Strict 4-number format, never accept JSON supplied from customers.
   if(!/^\\d{1,3},\\d{1,3},\\d{1,3},\\d{1,3}$/.test(raw))
-    return {1:0,3:0,5:0,10:0,configured:false};
+    return {1:10,3:20,5:40,10:70,configured:true};
   const vals=raw.split(',').map(Number);
   if(vals.some(v=>!Number.isSafeInteger(v)||v>500))
-    return {1:0,3:0,5:0,10:0,configured:false};
+    return {1:10,3:20,5:40,10:70,configured:true};
   return {1:vals[0],3:vals[1],5:vals[2],10:vals[3],configured:true};
 }
 export function calculateAward(total,completedSpend,purchaseNumber,gifts){
   if(!Number.isSafeInteger(total)||total<0||!Number.isSafeInteger(purchaseNumber)||purchaseNumber<1)
     throw Error('Invalid loyalty purchase');
   const tier=coinsTier(completedSpend);
-  const base=Math.floor(total*tier.percent/100);
+  const base=Math.min(COINS_RULES.maxBasePerOrder,Math.floor(total*tier.percent/100));
   const milestone=Number(gifts?.[purchaseNumber]||0);
   if(!Number.isSafeInteger(milestone)||milestone<0||milestone>500)throw Error('Invalid milestone reward');
   return {base,milestone,tier};
