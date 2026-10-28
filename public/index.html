@@ -476,6 +476,11 @@
       <button type="button" id="applyPromo">Застосувати промокод</button>
       <p id="promoNotice" role="status" aria-live="polite"></p>
       <p class="promo-hint">Один промокод на замовлення. Знижка застосовується до поточних цін товарів, без доставки. Знижка округлюється вниз до гривні.</p>
+      <div id="coinsCheckout" class="promo-hint" hidden>
+        <label for="coinsAmount">🪙 Tanuki Coins — використати бонуси (1 Coin = 1 грн)</label>
+        <input id="coinsAmount" type="number" min="0" step="1" value="0" inputmode="numeric">
+        <p id="coinsNotice" role="status">Завантажуємо доступні Coins…</p>
+      </div>
       <div class="checkout-summary">
         <span>Сума замовлення:</span>
         <strong id="checkoutTotal">0 ₴</strong>
@@ -947,6 +952,18 @@
     $("promoCode").value = "";
     clearPromo();
     $("checkoutTotal").textContent = formatPrice(getTotal());
+    const coinsPanel=$("coinsCheckout"),coinsInput=$("coinsAmount"),coinsNotice=$("coinsNotice");
+    coinsPanel.hidden=true;coinsInput.value="0";coinsNotice.textContent="";
+    fetch("/api/customer/wallet",{credentials:"same-origin"}).then(async r=>{
+      if(!r.ok)return;
+      const w=await r.json();
+      if(!w.enabled)return;
+      coinsPanel.hidden=false;
+      const balance=Math.max(0,Math.floor(Number(w.points)||0));
+      const limit=Math.min(balance,Math.floor(getTotal()*.2));
+      coinsInput.max=String(limit);
+      coinsNotice.textContent="Доступно: "+balance+" 🪙 · можна списати до "+limit+" 🪙. Не поєднується з промокодом.";
+    }).catch(()=>{coinsPanel.hidden=true;});
     checkoutModal.classList.add("active");
   }
 
@@ -1166,6 +1183,13 @@
     nova.notice.textContent="Обраний пункт додано в адресу доставки.";
   });
 
+  $("coinsAmount").addEventListener("input",()=>{
+    const input=$("coinsAmount"),v=Number(input.value);
+    const available=Number(input.max)||0;
+    const valid=Number.isSafeInteger(v)&&v>=0&&v<=available;
+    $("coinsNotice").textContent=valid?"Використаємо "+v+" 🪙. Остаточну суму перевірить сервер.":"Некоректна кількість Coins.";
+    $("checkoutTotal").textContent=formatPrice(Math.max(0,getTotal()-(valid?v:0)));
+  });
   checkoutForm.addEventListener("submit", async event => {
     event.preventDefault();
 
@@ -1175,6 +1199,13 @@
       return;
     }
 
+    const requestedCoins=$("coinsCheckout").hidden?0:Number($("coinsAmount").value||0);
+    if(!Number.isSafeInteger(requestedCoins)||requestedCoins<0||requestedCoins>Number($("coinsAmount").max||0)){
+      $("coinsNotice").textContent="Перевірте кількість Coins перед оформленням.";return;
+    }
+    if(requestedCoins>0 && ($("promoCode").value.trim()||appliedPromo)){
+      $("coinsNotice").textContent="Coins і промокод не можна використовувати разом.";return;
+    }
     if ($("promoCode").value.trim() && !appliedPromo) {
       $("promoNotice").textContent = "Спочатку застосуйте промокод або очистіть поле.";
       $("promoCode").focus();return;
@@ -1183,6 +1214,7 @@
 
     const order = {
       promo_code: appliedPromo?.code || "",
+      ...($("coinsCheckout").hidden?{}:{coins_to_spend:requestedCoins}),
       customerName: $("customerName").value.trim(),
       customerPhone: $("customerPhone").value.trim(),
       customerCity: $("customerCity").value.trim(),
