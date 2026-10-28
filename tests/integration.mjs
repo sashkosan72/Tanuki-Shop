@@ -84,7 +84,7 @@ assert.ok(createdOrder);checks++;
 assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,7);checks++;
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:99}]},400);
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:2},{id:'qa-soldout',quantity:1}]},400);
-assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,8);checks++;
+assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,7);checks++;
 await call('/api/orders',{...order,items:[]},400);
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:-1}]},400);
 
