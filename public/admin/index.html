@@ -657,7 +657,8 @@ function renderOrders(){
         </div>
         <div class="details">
           👤 ${esc(o.customer_name)} · 📞 ${esc(o.customer_phone)}<br>
-          📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}
+          📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}<br>
+          🚚 ${esc(({nova_poshta:"Нова пошта",ukrposhta:"Укрпошта"})[o.shipping_method]||"Не вказано")}
           ${o.customer_comment?"<br>💬 "+esc(o.customer_comment):""}
         </div>
         <strong>Товари:</strong>
