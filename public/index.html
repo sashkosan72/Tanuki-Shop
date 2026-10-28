@@ -423,6 +423,14 @@
         <input type="text" id="customerCity" required
           placeholder="Ваше місто" autocomplete="address-level2" maxlength="100">
       </label>
+      <label>Служба доставки
+        <select id="shippingMethod" required>
+          <option value="">Оберіть службу доставки</option>
+          <option value="nova_poshta">Нова пошта</option>
+          <option value="ukrposhta">Укрпошта</option>
+        </select>
+      </label>
+      <p class="promo-hint">Вартість і термін доставки уточнюються перед відправленням.</p>
       <label>
         Адреса / відділення
         <input type="text" id="customerAddress" required
@@ -922,6 +930,7 @@
     const orderNumber = result.order_number || result.orderNumber || "Оформлено";
     const total = result.total_amount ?? result.total ?? 0;
     const telegramLink = result.telegram_link || result.telegramLink || null;
+    const shippingLabel = ({nova_poshta:"Нова пошта",ukrposhta:"Укрпошта"})[result.shipping_method] || "Уточнюється";
 
     const modal = makeElement("div", "checkout-modal active");
     modal.style.zIndex = "10000";
@@ -978,7 +987,7 @@
     close.addEventListener("click", () => modal.remove());
     actions.appendChild(close);
 
-    windowElement.append(title, message, telegramInfo, actions);
+    windowElement.append(title, message, makeElement("p", "", "Доставка: "+shippingLabel+". Тариф уточнюється."), telegramInfo, actions);
     modal.append(overlay, windowElement);
     overlay.addEventListener("click", () => modal.remove());
     document.body.appendChild(modal);
@@ -1059,6 +1068,7 @@
       customerName: $("customerName").value.trim(),
       customerPhone: $("customerPhone").value.trim(),
       customerCity: $("customerCity").value.trim(),
+      shippingMethod: $("shippingMethod").value,
       customerAddress: $("customerAddress").value.trim(),
       customerComment: $("customerComment").value.trim(),
       items: cart.map(item => ({
@@ -1071,6 +1081,7 @@
       !order.customerName ||
       !order.customerPhone ||
       !order.customerCity ||
+      !["nova_poshta","ukrposhta"].includes(order.shippingMethod) ||
       !order.customerAddress
     ) {
       alert("Будь ласка, заповніть усі обов’язкові поля.");
