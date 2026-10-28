@@ -182,6 +182,31 @@ const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCook
  const productionWallet=await import('../src/tanuki-coins.js');
  assert.equal(productionWallet.coinsEnabled({ENVIRONMENT:'production',TANUKI_COINS_ENABLED:'true'}),false);checks++;
 }
+// Spend ledger: DB trigger prevents overspending, other-account use and cancelled original awards.
+{
+ const customer=await db.prepare("SELECT id FROM customer_accounts WHERE telegram_id='777'").first();
+ const awardSource=await db.prepare("SELECT id FROM orders WHERE status='new' LIMIT 1").first();
+ const orig=await db.prepare("SELECT id FROM orders WHERE status='completed' LIMIT 1").first();
+ // Create a synthetic completed order and matured award in isolated D1.
+ const completed=await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES('QA-COINS-SOURCE','QA','000','test','test',1000,'completed','nova_poshta')").run();
+ const cid=completed.meta.last_row_id;
+ const issued=await db.prepare("INSERT INTO loyalty_awards(order_id,customer_id,kind,points,available_at,expires_at) VALUES(?,?,'base',60,datetime('now','-1 day'),datetime('now','+30 day'))").bind(cid,customer.id).run();
+ const aid=issued.meta.last_row_id;
+ const checkout=await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES('QA-COINS-SPEND','QA','000','test','test',100,'new','nova_poshta')").run();
+ const oid=checkout.meta.last_row_id;
+ await db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(oid,aid,customer.id,40).run();
+ await assert.rejects(()=>db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(oid+999,aid,customer.id,1).run());checks++;
+ const checkout2=await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES('QA-COINS-SPEND2','QA','000','test','test',100,'new','nova_poshta')").run();
+ await assert.rejects(()=>db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(checkout2.meta.last_row_id,aid,customer.id,30).run());checks++;
+ await db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(checkout2.meta.last_row_id,aid,customer.id,20).run();checks++;
+ await assert.rejects(()=>db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(oid,aid,999999,1).run());checks++;
+ await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(oid).run();
+ await db.prepare("UPDATE loyalty_spends SET refunded_at=CURRENT_TIMESTAMP WHERE order_id=?").bind(oid).run();
+ const checkout3=await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES('QA-COINS-SPEND3','QA','000','test','test',100,'new','nova_poshta')").run();
+ await db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(checkout3.meta.last_row_id,aid,customer.id,40).run();checks++;
+ await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(cid).run();
+ await assert.rejects(()=>db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(checkout3.meta.last_row_id,aid,customer.id,1).run());checks++;
+}
 console.log(`PASS: ${checks} integration assertions (local Workers runtime + isolated D1; Telegram transport mocked)`);
 }finally{await mf.dispose();}
 
