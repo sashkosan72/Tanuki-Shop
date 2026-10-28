@@ -9,7 +9,7 @@ const db=await mf.getD1Database('DB');
 async function sql(s){return db.prepare(s).run();}
 async function call(path,body,expected=200,headers={}){const r=await mf.dispatchFetch(origin+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','Origin':origin,'X-Tanuki-Request':'1',...headers},...(body===undefined?{}:{body:JSON.stringify(body)})});const d=await r.json();assert.equal(r.status,expected,`${path}: ${JSON.stringify(d)}`);checks++;return {r,d};}
 try{
-for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
+for(const path of ['tests/store-schema.sql','migrations/20261023_customer_accounts.sql','migrations/20261024_telegram_login.sql','migrations/20261025_partners.sql','migrations/20261028_promotions.sql']) for(const s of readFileSync(path,'utf8').replace(/^--.*$/gm,'').split(';').filter(s=>s.trim()))await sql(s);
 await call('/api/health'); await call('/api/products');await call('/api/unknown',undefined,404);await call('/api/admin/orders',undefined,401);await call('/api/customer/me',undefined,401);await call('/api/customer/orders',undefined,401);
 const stamp=Math.floor(Date.now()/1000);
 function signed(patch={},token='local-test-token'){
@@ -104,6 +104,40 @@ await partner('PATCH','/api/admin/partners/999999',fixture,404);
 await partner('DELETE',route,undefined,200);
 await partner('DELETE',route,undefined,404);
 assert.equal((await call('/api/partners')).d.partners.length,0);checks++;
+
+// Promotion quote uses authoritative sale prices; activation is explicit.
+await call('/api/admin/promotions',undefined,401);
+const promo={code:'qa-oct28',percent:10,min_total:100,expires_at:null,active:false};
+await partner('POST','/api/admin/promotions',promo,403,{Origin:'https://evil.invalid'});
+await partner('POST','/api/admin/promotions',promo,403,{'X-Tanuki-Request':''});
+for(const patch of [{percent:100},{percent:0},{percent:2.5},{min_total:-1},{code:'<script>'},{active:'true'},{expires_at:'garbage'}])await partner('POST','/api/admin/promotions',{...promo,...patch},400);
+const promoCreated=await partner('POST','/api/admin/promotions',promo,201);
+await partner('POST','/api/admin/promotions',promo,409);
+const promoRoute='/api/admin/promotions/'+promoCreated.id;
+await sql("UPDATE products SET stock=10 WHERE id='qa-sticker'");
+const quote={code:promo.code,items:order.items,total:1,discount_amount:99999};
+await call('/api/promotions/quote',quote,400);
+await partner('PATCH',promoRoute,{...promo,active:true},200);
+await call('/api/promotions/quote',quote,403,{'X-Tanuki-Request':''});
+const quoted=(await call('/api/promotions/quote',quote)).d;
+assert.equal(quoted.subtotal,160);assert.equal(quoted.discount_amount,16);assert.equal(quoted.total,144);checks++;
+await call('/api/promotions/quote',{...quote,items:[{id:'qa-sticker',quantity:1}]},400);
+await call('/api/promotions/quote',{...quote,items:[{id:'qa-sticker',quantity:-1}]},400);
+await call('/api/promotions/quote',{...quote,items:[{id:'qa-sticker',quantity:99},{id:'qa-sticker',quantity:99}]},400);
+await call('/api/promotions/quote',{...quote,items:[{id:'missing',quantity:2}]},400);
+const stockBefore=(await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock;
+await call('/api/orders',{...order,promo_code:'DOES-NOT-EXIST'},400);
+assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,stockBefore);checks++;
+const discounted=(await call('/api/orders',{...order,promo_code:promo.code,total:1,discount_amount:159},201)).d;
+assert.equal(discounted.total,144);checks++;
+const snapshot=await db.prepare('SELECT * FROM order_promotions WHERE order_id=?').bind(discounted.order_id).first();assert.equal(snapshot.code,'QA-OCT28');assert.equal(snapshot.subtotal,160);assert.equal(snapshot.discount_amount,16);checks++;
+await partner('PATCH',promoRoute,{...promo,percent:20,active:false},200);
+assert.equal((await db.prepare('SELECT discount_amount FROM order_promotions WHERE order_id=?').bind(discounted.order_id).first()).discount_amount,16);checks++;
+await call('/api/orders',{...order,promo_code:promo.code},400);
+await sql("UPDATE promotions SET active=1,expires_at='2020-01-01T00:00:00.000Z'");
+await call('/api/promotions/quote',quote,400);
+await call('/api/orders',{...order,promo_code:promo.code},400);
+const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCookie});assert.equal(adminOrders.d.orders.find(x=>x.id===discounted.order_id).promotion.discount_amount,16);checks++;
 
 console.log(`PASS: ${checks} integration assertions (local Workers runtime + isolated D1; Telegram transport mocked)`);
 }finally{await mf.dispose();}

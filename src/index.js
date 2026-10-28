@@ -1,3 +1,4 @@
+import {adminPromotions, quotePromotion, discountFor, PromotionError} from "./promotions.js";
 import {publicPartners, adminPartners} from "./partners.js";
 import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
 import {telegramBotUsername, siteOrigin} from "./environment.js";
@@ -2108,6 +2109,8 @@ async function createOrder(request, env) {
       throw new Error("Некоректна сума замовлення.");
     }
 
+    const promotion = body.promo_code ? await discountFor(env, body.promo_code, totalAmount) : null;
+    if (promotion) totalAmount = promotion.total;
     const orderNumber = generateOrderNumber();
 
     const statements = [
@@ -2160,6 +2163,7 @@ async function createOrder(request, env) {
       )
     ];
 
+    if (promotion) statements.push(env.DB.prepare(`INSERT INTO order_promotions(order_id,code,percent,subtotal,discount_amount) SELECT id,?,?,?,? FROM orders WHERE order_number=?`).bind(promotion.code,promotion.percent,promotion.subtotal,promotion.discount_amount,orderNumber));
     await env.DB.batch(statements);
 
     const savedOrder = await env.DB.prepare(`
@@ -2251,6 +2255,7 @@ async function createOrder(request, env) {
     const message = error.message || "";
 
     if (
+      error instanceof PromotionError ||
       message.includes("недоступний") ||
       message.includes("Недостатньо") ||
       message.includes("перевищувати") ||
@@ -2344,6 +2349,7 @@ async function adminGetOrders(env) {
 
       result.push({
         ...order,
+        promotion: await env.DB.prepare("SELECT code,percent,subtotal,discount_amount FROM order_promotions WHERE order_id=?").bind(order.id).first(),
         items: items.results || []
       });
     }
@@ -2667,6 +2673,8 @@ export default {
 
       if (path === "/api/partners" && method === "GET") return publicPartners(env);
 
+      if (path === "/api/promotions/quote" && method === "POST") return quotePromotion(request, env);
+
       /* ---------- HEALTH ---------- */
 
       if (path === "/api/health" && method === "GET") {
@@ -2756,6 +2764,7 @@ export default {
           }, 401);
         }
 
+        if (path === "/api/admin/promotions" || path.startsWith("/api/admin/promotions/")) return adminPromotions(request, env);
         if (path === "/api/admin/partners" || path.startsWith("/api/admin/partners/")) return adminPartners(request, env);
 
         /* ---------- TELEGRAM WEBHOOK SETUP ---------- */

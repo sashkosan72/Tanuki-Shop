@@ -20,7 +20,7 @@ small{color:#e1c4ec}a{color:#f4b9ff}
 <p><small>Використовуйте той Telegram, яким підтверджували попередній акаунт. Ваші дані залишаться в ньому.</small></p>
 <button class="action" id="retry" type="button" hidden>Спробувати ще раз</button></section>
 <section id="profile" hidden><h2>Ваш профіль</h2><div id="details" class="info"></div><div id="points" class="info"></div><h2>Мої замовлення</h2><div id="orders" class="info" aria-live="polite">Завантажуємо замовлення…</div><button class="action" id="logout" type="button">Вийти</button></section>
-<p><small>Бонусна програма та промокоди ще готуються до запуску.</small></p>
+<p><small>Бонусна програма ще готується до запуску. Промокод можна застосувати під час оформлення замовлення.</small></p>
 </main>
 <script>
 (()=>{'use strict';
@@ -35,4 +35,4 @@ $('logout').addEventListener('click',async()=>{try{await call('logout',{});$('pr
 if(location.search){history.replaceState(null,'','/account/');msg('Пароль більше не потрібен. Увійдіть через свій Telegram.');}
 profile().then(found=>{if(!found)return widget();}).catch(e=>{msg(e.message);$('retry').hidden=false;$('loading').hidden=true;});
 })();
-</script></body></html>
+</script><footer style="padding:20px;text-align:center"><a href="/privacy/">Конфіденційність</a> · <a href="/cookies/">Cookies</a></footer></body></html>

@@ -1,0 +1,16 @@
+CREATE TABLE IF NOT EXISTS promotions (
+ id INTEGER PRIMARY KEY AUTOINCREMENT,
+ code TEXT NOT NULL UNIQUE,
+ percent INTEGER NOT NULL CHECK(percent BETWEEN 1 AND 90),
+ min_total INTEGER NOT NULL DEFAULT 0 CHECK(min_total >= 0),
+ expires_at TEXT,
+ active INTEGER NOT NULL DEFAULT 0 CHECK(active IN (0,1)),
+ created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS order_promotions (
+ order_id INTEGER PRIMARY KEY REFERENCES orders(id),
+ code TEXT NOT NULL,
+ percent INTEGER NOT NULL,
+ subtotal INTEGER NOT NULL,
+ discount_amount INTEGER NOT NULL CHECK(discount_amount > 0)
+);

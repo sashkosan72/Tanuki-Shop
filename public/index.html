@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#fff0f5">
   <meta name="description" content="Tanuki Shop — kawaii та anime товари, аксесуари, плюшеві іграшки та подарунки.">
+  <link rel="icon" type="image/png" href="/tanuki-logo.png">
   <title>Tanuki Shop — Kawaii & Anime Store</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/storefront-ui.js" defer></script>
@@ -178,7 +179,7 @@
 
 <header class="site-header">
   <div class="container header-inner">
-    <a href="#home" class="logo" aria-label="Tanuki Shop — на головну">🦝 Tanuki Shop</a>
+    <a href="#home" class="logo" aria-label="Tanuki Shop — на головну"><img src="/tanuki-logo.png" width="48" height="48" alt=""> <span>Tanuki Shop</span></a>
     <nav class="main-nav" id="siteNavigation" aria-label="Основне меню">
       <a href="#home">Головна</a>
       <a href="#sticker-news">Новинки</a>
@@ -214,7 +215,7 @@
         </p>
         <a href="#catalog" class="hero-button">Перейти до каталогу →</a>
       </div>
-      <div class="hero-character">🦝</div>
+      <div class="hero-character"><img class="hero-logo" src="/tanuki-logo.png" alt="Tanuki Shop — Anime Goods" width="320" height="320" fetchpriority="high"></div>
     </div>
   </section>
 
@@ -294,12 +295,12 @@
       <div class="section-heading">
         <span aria-hidden="true">💜</span>
         <h2 id="member-benefits-title">Більше можливостей для покупців</h2>
-        <p>Готуємо нові функції Tanuki Shop — вони ще не запущені</p>
+        <p>Кабінет через Telegram, промокоди та майбутні бонуси</p>
       </div>
       <div class="member-benefits-grid">
         <article class="member-benefit">
           <span class="member-benefit-icon" aria-hidden="true">👤</span>
-          <span class="member-benefit-state">У розробці</span>
+          <span class="member-benefit-state">Доступно</span>
           <h3>Особистий кабінет</h3>
           <p>Вхід і створення акаунта через Telegram без пароля. Замовлення та підтримка — у боті магазину.</p>
         </article>
@@ -311,9 +312,9 @@
         </article>
         <article class="member-benefit">
           <span class="member-benefit-icon" aria-hidden="true">🎟️</span>
-          <span class="member-benefit-state">У розробці</span>
+          <span class="member-benefit-state">Доступно</span>
           <h3>Промокоди та акції</h3>
-          <p>Персональні пропозиції й знижки, коли система буде готова.</p>
+          <p>Маєте промокод? Застосуйте його під час оформлення замовлення й одразу побачите суму знижки.</p>
         </article>
       </div>
     </div>
@@ -346,6 +347,8 @@
       <strong>🦝 Tanuki Shop</strong>
       <p>Kawaii & Anime Store</p>
     </div>
+    <nav aria-label="Інформація для покупців"><a href="/privacy/">Конфіденційність</a> · <a href="/cookies/">Cookies</a></nav>
+    <div id="support-chat"><button type="button" id="loadSupportChat">Підтримка: підключити чат</button><p id="chatNotice" role="status">Після натискання буде завантажено чат KeyCRM. <a href="/privacy/">Як обробляються дані</a></p></div>
     <p>© 2026 Tanuki Shop</p>
   </div>
 </footer>
@@ -430,10 +433,17 @@
           placeholder="Наприклад: зателефонуйте перед відправкою"
           maxlength="1000"></textarea>
       </label>
+      <label>Промокод
+        <input id="promoCode" type="text" maxlength="32" autocomplete="off" placeholder="Наприклад: TANUKI10" spellcheck="false">
+      </label>
+      <button type="button" id="applyPromo">Застосувати промокод</button>
+      <p id="promoNotice" role="status" aria-live="polite"></p>
+      <p class="promo-hint">Один промокод на замовлення. Знижка застосовується до поточних цін товарів, без доставки. Знижка округлюється вниз до гривні.</p>
       <div class="checkout-summary">
         <span>Сума замовлення:</span>
         <strong id="checkoutTotal">0 ₴</strong>
       </div>
+      <p class="promo-hint">Для обробки замовлення ми використаємо введені контактні дані. <a href="/privacy/" target="_blank" rel="noopener">Конфіденційність</a> · <a href="/cookies/" target="_blank" rel="noopener">Cookies</a></p>
       <button type="submit" class="checkout-submit">✅ Підтвердити замовлення</button>
     </form>
   </div>
@@ -449,6 +459,7 @@
   let products = [];
   let productCatalog = {};
   let cart = [];
+  let appliedPromo = null, promoRequest = 0;
   let galleryProduct = null;
   let galleryIndex = 0;
 
@@ -779,6 +790,7 @@
 
   /* КОШИК */
   function updateCart() {
+    clearPromo();
     const count = cart.reduce((sum, item) => sum + item.quantity, 0);
     const total = getTotal();
 
@@ -882,6 +894,7 @@
       return;
     }
     closeCart();
+    clearPromo();
     $("checkoutTotal").textContent = formatPrice(getTotal());
     checkoutModal.classList.add("active");
   }
@@ -977,6 +990,30 @@
     });
   });
 
+  function clearPromo() {
+    appliedPromo = null; promoRequest++;
+    $("promoNotice").textContent = "";
+    $("checkoutTotal").textContent = formatPrice(getTotal());
+  }
+  $("promoCode").addEventListener("input", clearPromo);
+  $("applyPromo").addEventListener("click", async () => {
+    clearPromo();
+    const requestId = promoRequest;
+    const button = $("applyPromo");button.disabled = true;
+    $("promoNotice").textContent = "Перевіряємо промокод…";
+    try {
+      const response = await fetch("/api/promotions/quote", {method:"POST",headers:{"Content-Type":"application/json","X-Tanuki-Request":"1"},body:JSON.stringify({code:$("promoCode").value.trim(),items:cart.map(({id,quantity})=>({id,quantity}))})});
+      const data = await response.json();
+      if(requestId !== promoRequest)return;
+      if(!response.ok||!data.ok)throw Error(data.error||"Не вдалося перевірити промокод.");
+      appliedPromo = data;
+      $("promoCode").value = data.code;
+      $("promoNotice").textContent = data.code+": −"+data.percent+"% (−"+formatPrice(data.discount_amount)+").";
+      $("checkoutTotal").textContent = formatPrice(data.total);
+    } catch(error) {if(requestId===promoRequest)$("promoNotice").textContent = error.message||"Помилка зв’язку.";}
+    finally {button.disabled = false;}
+  });
+
   checkoutForm.addEventListener("submit", async event => {
     event.preventDefault();
 
@@ -986,9 +1023,14 @@
       return;
     }
 
+    if ($("promoCode").value.trim() && !appliedPromo) {
+      $("promoNotice").textContent = "Спочатку застосуйте промокод або очистіть поле.";
+      $("promoCode").focus();return;
+    }
     const submitButton = checkoutForm.querySelector(".checkout-submit");
 
     const order = {
+      promo_code: appliedPromo?.code || "",
       customerName: $("customerName").value.trim(),
       customerPhone: $("customerPhone").value.trim(),
       customerCity: $("customerCity").value.trim(),
@@ -1060,21 +1102,19 @@
 })();
 </script>
 
-<!-- KeyCRM online chat widget begin -->
-<script type="text/javascript">
-(function(w,d,t,u,c){
-  if(location.hostname!=="tanukishop.pp.ua") return;
-  var s=d.createElement(t),j=d.getElementsByTagName(t)[0];
-  s.src=u;
-  s["async"]=true;
-  s.defer=true;
-  s.onload=function(){KeyCRM.render(c);};
-  j.parentNode.insertBefore(s,j)
-})(window, document, "script",
-"https://chat.key.live/bundles/widget.min.js",
-{token:"a3f6ccfd-b0bc-435f-8df5-ea496f1cec63"});
+<script>
+(() => {
+ const button=document.getElementById('loadSupportChat'),notice=document.getElementById('chatNotice');
+ button.addEventListener('click',()=>{
+  if(location.hostname!=="tanukishop.pp.ua"){notice.textContent='У Preview робочий чат не підключається.';return;}
+  button.disabled=true;notice.textContent='Завантажуємо чат…';
+  const script=document.createElement('script');script.src='https://chat.key.live/bundles/widget.min.js';script.async=true;
+  script.onload=()=>{try{KeyCRM.render({token:'a3f6ccfd-b0bc-435f-8df5-ea496f1cec63'});notice.textContent='Чат підключено. Відкрийте його кнопку в куті сторінки.';}catch{notice.textContent='Чат зараз недоступний. Оновіть сторінку та спробуйте пізніше.';}};
+  script.onerror=()=>{notice.textContent='Не вдалося підключити чат. Спробуйте ще раз.';button.disabled=false;script.remove();};
+  document.head.append(script);
+ });
+})();
 </script>
-<!-- KeyCRM online chat widget end -->
 
 </body>
 </html>
