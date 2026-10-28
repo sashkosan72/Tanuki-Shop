@@ -447,6 +447,7 @@
         <label>Відділення або поштомат
           <select id="novaWarehouse"><option value="">Оберіть пункт отримання</option></select>
         </label>
+        <button id="novaMore" type="button" hidden>Показати ще відділення / поштомати</button>
         <p id="novaNotice" class="promo-hint" role="status" aria-live="polite"></p>
       </div>
       <label>
@@ -1113,18 +1114,36 @@
       }catch(e){if(token===requestSequence)nova.notice.textContent=e.message;}
     },350);
   });
+  let novaPage=1;
   async function loadWarehouses(){
     const token=++requestSequence;resetSelect(nova.warehouse,"Оберіть пункт отримання");
+    $("novaMore").hidden=true;
     const selected=nova.city.selectedOptions[0];$("customerCity").value=nova.city.value?selected.textContent:"";
     $("customerAddress").value="";
     if(!nova.city.value)return;
     try{
-      const {items}=await lookupNova("warehouses",{city:nova.city.value,filter:nova.type.value});
+      const {items,hasMore}=await lookupNova("warehouses",{city:nova.city.value,filter:nova.type.value,page:"1"});
       if(token!==requestSequence)return;
       for(const item of items)option(nova.warehouse,item.ref,item.name);
-      nova.notice.textContent=items.length?"Виберіть пункт отримання.":"Немає пунктів у першій сторінці довідника; можна ввести адресу вручну.";
+      nova.notice.textContent=items.length?"Виберіть пункт отримання або перегляньте наступні.":"Пункти не знайдено. Можна ввести адресу вручну.";
+      $("novaMore").hidden=!hasMore;
+      novaPage=1;
     }catch(e){if(token===requestSequence)nova.notice.textContent=e.message+" Вкажіть адресу вручну.";}
   }
+  $("novaMore").addEventListener("click",async()=>{
+    if(!nova.city.value)return;
+    const token=requestSequence;
+    const button=$("novaMore");button.disabled=true;
+    try{
+      const next=novaPage+1;
+      const {items,hasMore}=await lookupNova("warehouses",{city:nova.city.value,filter:nova.type.value,page:String(next)});
+      if(token!==requestSequence)return;
+      for(const item of items)option(nova.warehouse,item.ref,item.name);
+      novaPage=next;button.hidden=!hasMore;
+      nova.notice.textContent=items.length?"Додано наступні пункти отримання.":"Інших пунктів не знайдено.";
+    }catch(e){if(token===requestSequence)nova.notice.textContent=e.message;}
+    finally{button.disabled=false;}
+  });
   nova.city.addEventListener("change",loadWarehouses);
   nova.type.addEventListener("change",loadWarehouses);
   nova.warehouse.addEventListener("change",()=>{
