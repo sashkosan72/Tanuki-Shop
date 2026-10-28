@@ -43,7 +43,7 @@ assert.equal(valid.notice.hidden,true);
 const duplicates=execute(products,[{id:'limited',quantity:2},{id:'limited',quantity:3}]);
 assert.deepEqual(duplicates.cart.map(x=>[x.id,x.quantity]),[['limited',3]]);
 const invalid=execute(products,[{id:'limited',quantity:-1},{id:'untracked',quantity:500},{quantity:1}]);
-assert.deepEqual(invalid.cart,[]);
+assert.deepEqual(invalid.cart.map(x=>[x.id,x.quantity]),[['untracked',99]]);
 assert.equal(invalid.notice.hidden,false);
 
 assert.match(html,/plus\.disabled = item\.quantity >= allowedQuantity/);
