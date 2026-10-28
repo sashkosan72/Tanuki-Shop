@@ -127,8 +127,14 @@ export async function previewWallet(env,customer){
   }));
   for(const x of legacyHistory.results||[])history.push({delta:Number(x.points_delta),reason:String(x.reason||'').slice(0,160),createdAt:x.created_at,status:'legacy'});
   const tier=coinsTier(completedSpend);
-  return {ok:true,points:Math.max(0,Number(available?.coins||0)-Number(spent?.coins||0)+Number(legacy?.points||0)),
-    pending,transactions:history.slice(0,20),enabled:true,redemptionEnabled:true,
+  // A revoked reward may have been spent in a later order; its cost remains
+  // outstanding. Do not merge unrelated legacy ledger points into Coins
+  // redemption eligibility until legacy migration rules are approved.
+  const netCoins=Number(available?.coins||0)-Number(spent?.coins||0);
+  const debt=Math.max(0,-netCoins);
+  return {ok:true,points:Math.max(0,netCoins),
+    legacyPoints:Number(legacy?.points||0),debt,
+    pending,transactions:history.slice(0,20),enabled:true,redemptionEnabled:debt===0,
     tier:tier.name,percent:tier.percent,completedSpend,nextTierAt:tier.nextAt,
     rules:COINS_RULES,milestoneRewardsConfigured:gifts.configured,
     currency:'bonus_points',message:'Тестова програма Tanuki Coins у Preview. Списання доступне лише в тестовому магазині.'};
