@@ -100,7 +100,7 @@ export async function handleCustomerRoute(request,env){
       // Never look up orders by a buyer's display name, phone number or email.
       if(!customer.telegram_id)return ok({ok:true,orders:[]});
       const linked=await env.DB.prepare(`
-        SELECT o.order_number,o.status,o.total_amount,o.created_at
+        SELECT o.order_number,o.status,o.total_amount,o.created_at,o.shipping_method
         FROM orders o
         INNER JOIN order_telegram_links l ON l.order_id=o.id
         INNER JOIN telegram_customers tc ON tc.id=l.telegram_customer_id
@@ -112,7 +112,8 @@ export async function handleCustomerRoute(request,env){
         orderNumber:o.order_number,
         status:o.status,
         total:Number(o.total_amount),
-        createdAt:o.created_at
+        createdAt:o.created_at,
+        shippingMethod:o.shipping_method
       }))});
     }
     // Read only the current account's ledger entries; never take customer_id from the request.
