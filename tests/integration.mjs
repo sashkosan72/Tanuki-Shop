@@ -36,14 +36,14 @@ await call(endpoint,signed({username:'a'.repeat(6000)}),401);
 let login=await call(endpoint,signed());let cookie=login.r.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);cookie=cookie.split(';')[0];checks++;
 assert.equal(login.d.customer.email,'');checks++;
 await call(endpoint,signed(),409);
-await call('/api/customer/me',undefined,200,{Cookie:cookie});const emptyOrders=await call('/api/customer/orders',undefined,200,{Cookie:cookie});assert.deepEqual(emptyOrders.d.orders,[]);checks++;let wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,0);checks++;
+await call('/api/customer/me',undefined,200,{Cookie:cookie});const emptyOrders=await call('/api/customer/orders',undefined,200,{Cookie:cookie});assert.deepEqual(emptyOrders.d.orders,[]);checks++;let wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,0);assert.deepEqual(wallet.d.transactions,[]);assert.equal(wallet.d.enabled,false);checks+=3;
 await call('/api/customer/logout',{},200,{Cookie:cookie});await call('/api/customer/me',undefined,401,{Cookie:cookie});
 // A legacy account and its balances remain attached to its verified Telegram ID.
 await sql("INSERT INTO customer_accounts(name,email,password_salt,password_hash,password_iterations,telegram_id,verified_at) VALUES('Legacy','old@example.invalid','salt','oldhash',180000,'777',CURRENT_TIMESTAMP)");
 const legacy=await db.prepare("SELECT id FROM customer_accounts WHERE telegram_id='777'").first();
 await db.prepare("INSERT INTO customer_wallet_transactions(customer_id,points_delta,reason) VALUES(?,37,'test')").bind(legacy.id).run();
 login=await call(endpoint,signed({id:777}));assert.equal(login.d.customer.id,legacy.id);assert.equal(login.d.customer.email,'old@example.invalid');checks++;
-cookie=login.r.headers.get('set-cookie').split(';')[0];wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,37);checks++;
+cookie=login.r.headers.get('set-cookie').split(';')[0];wallet=await call('/api/customer/wallet',undefined,200,{Cookie:cookie});assert.equal(wallet.d.points,37);assert.equal(wallet.d.transactions.length,1);assert.equal(wallet.d.transactions[0].delta,37);assert.equal(wallet.d.transactions[0].reason,'test');assert.equal(wallet.d.enabled,false);checks+=5;
 const unchanged=await db.prepare('SELECT password_hash FROM customer_accounts WHERE id=?').bind(legacy.id).first();assert.equal(unchanged.password_hash,'oldhash');checks++;
 // Concurrent replay: exactly one session, not one per racing request.
 const race=signed({id:888});const results=await Promise.all([200,409].map(()=>mf.dispatchFetch(origin+endpoint,{method:'POST',headers:{'Content-Type':'application/json',Origin:origin,'X-Tanuki-Request':'1'},body:JSON.stringify(race)})));
@@ -51,6 +51,8 @@ assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);checks++;
 assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM customer_sessions s JOIN customer_accounts a ON a.id=s.customer_id WHERE a.telegram_id='888'").first()).n,1);checks++;
 // Do not merge a new Telegram identity into an email account.
 login=await call(endpoint,signed({id:999,username:'old'}));assert.notEqual(login.d.customer.id,legacy.id);checks++;
+const otherWallet=await call('/api/customer/wallet',undefined,200,{Cookie:login.r.headers.get('set-cookie').split(';')[0]});
+assert.equal(otherWallet.d.points,0);assert.deepEqual(otherWallet.d.transactions,[]);checks+=2;
 await call('/api/telegram/webhook',{message:{}},401);
 await sql("DELETE FROM customer_request_limits");
 for(let i=0;i<40;i++)await call(endpoint,{},401);
