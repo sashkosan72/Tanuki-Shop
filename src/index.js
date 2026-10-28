@@ -2,6 +2,7 @@ import {handleNovaPoshtaLookup} from "./nova-poshta.js";
 import {adminPromotions, quotePromotion, discountFor, PromotionError} from "./promotions.js";
 import {publicPartners, adminPartners} from "./partners.js";
 import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
+import {noteOrderStatus} from "./tanuki-coins.js";
 import {telegramBotUsername, siteOrigin} from "./environment.js";
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
 
@@ -1191,6 +1192,7 @@ async function handleTelegramWebhook(request, env) {
         WHERE id = ?
       `).bind(newStatus, orderId).run();
 
+      await noteOrderStatus(env,orderId,newStatus);
       await notifyBuyerOrderStatus(
         env,
         orderId,
@@ -2411,6 +2413,7 @@ async function adminUpdateOrder(request, env, orderId) {
         WHERE id = ?
       `).bind(status, orderId).run();
 
+      await noteOrderStatus(env,orderId,status);
       await notifyBuyerOrderStatus(
         env,
         orderId,
