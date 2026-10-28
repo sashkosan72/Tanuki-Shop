@@ -1,0 +1,51 @@
+name: Tanuki Shop PR11 — Read-only live smoke
+on:
+  push:
+    branches:
+      - feature/logo-promocodes-20261028
+    paths:
+      - '.github/workflows/preview-pr11-live.yml'
+permissions:
+  contents: read
+jobs:
+  smoke:
+    name: Live Preview without test orders
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Check PR11 health, catalog, legal pages and promo validation
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          const base = 'https://tanuki-shop-preview-pr11.sashh4051.workers.dev';
+          async function get(path) {
+            const r = await fetch(base+path,{redirect:'follow',headers:{Accept:'text/html, application/json'}});
+            assert.equal(r.status,200, path+' should return 200');
+            return {r,body:await r.text()};
+          }
+          const homepage=await get('/');
+          assert.match(homepage.body,/function allowedQuantity\(source\)/);
+          assert.match(homepage.body,/id="cartStockNotice"/);
+          assert.match(homepage.body,/tanuki-logo\.png/);
+          const logo=await get('/tanuki-logo.png');
+          assert.match(logo.r.headers.get('content-type')||'','image/png');
+          const health=JSON.parse((await get('/api/health')).body);
+          assert.equal(health.ok,true);assert.equal(health.database,'connected');
+          const products=JSON.parse((await get('/api/products')).body);
+          assert.equal(products.ok,true);assert.ok(Array.isArray(products.products));
+          for(const path of ['/privacy/','/cookies/','/account/','/partners/']) {
+            const page=await get(path);
+            assert.match(page.body,/Tanuki Shop/);
+          }
+          const bad=await fetch(base+'/api/promotions/quote',{
+            method:'POST',
+            headers:{Origin:base,'X-Tanuki-Request':'1','Content-Type':'application/json'},
+            body:JSON.stringify({code:'INVALID-NONEXISTENT-CODE',items:[{id:'qa-sticker',quantity:1}]})
+          });
+          assert.equal(bad.status,400,'Invalid promo must be rejected');
+          assert.equal((await bad.json()).ok,false);
+          console.log('PASS: public Preview, brand, cart code, D1 health, products, legal pages and rejected promo. No orders created.');
+          NODE
