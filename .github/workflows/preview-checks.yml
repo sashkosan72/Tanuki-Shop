@@ -41,6 +41,12 @@ jobs:
           }
           assert.match(html,/href="\/privacy\//);
           assert.match(html,/href="\/cookies\//);
+          for (const page of ['terms','delivery','returns']) {
+            const file='public/'+page+'/index.html';
+            assert.ok(existsSync(file),file+' must exist');
+            assert.match(html,new RegExp('href="/'+page+'/"'));
+            assert.match(readFileSync(file,'utf8'),/Tanuki Shop/);
+          }
           assert.match(html,/id="promoCode"/);
           assert.match(html,/src="\/tanuki-logo.png"/);
           assert.match(readFileSync('dist-preview/preview.js','utf8'),/tanuki-logo\.png/);
