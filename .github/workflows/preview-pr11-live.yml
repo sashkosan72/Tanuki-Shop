@@ -31,7 +31,7 @@ jobs:
           assert.match(homepage.body,/id="cartStockNotice"/);
           assert.match(homepage.body,/tanuki-logo\.png/);
           const logo=await get('/tanuki-logo.png');
-          assert.match(logo.r.headers.get('content-type')||'','image/png');
+          assert.match(logo.r.headers.get('content-type')||'',/image\/png/);
           const health=JSON.parse((await get('/api/health')).body);
           assert.equal(health.ok,true);assert.equal(health.database,'connected');
           const products=JSON.parse((await get('/api/products')).body);
