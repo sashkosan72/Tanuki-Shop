@@ -72,8 +72,8 @@ export async function previewWallet(env,customer){
   for(let i=0;i<orders.length;i++){
     const o=orders[i];const total=Number(o.total_amount);
     if(!Number.isSafeInteger(total)||total<0)continue;
-    completedSpend+=total;
     const a=calculateAward(total,completedSpend,i+1,gifts);
+    completedSpend+=total;
     const {ready}=await env.DB.prepare(`SELECT
       datetime(?,'+14 days')<=datetime('now') AS ready,
       datetime(?,'+194 days')>datetime('now') AS not_expired`).bind(o.completed_at,o.completed_at).first()
@@ -83,11 +83,20 @@ export async function previewWallet(env,customer){
     if(!ready){pending+=a.base+a.milestone;continue;}
     for(const [kind,coins] of [['base',a.base],['milestone',a.milestone]]){
       if(coins<1)continue;
+      let points=coins;
+      if(kind==='base'){
+        const month=String(o.completed_at).slice(0,7);
+        const monthly=await env.DB.prepare(`SELECT COALESCE(SUM(points),0) AS used
+          FROM loyalty_awards WHERE customer_id=? AND kind='base'
+          AND substr(available_at,1,7)=? `).bind(id,month).first();
+        points=Math.max(0,Math.min(points,COINS_RULES.maxBasePerMonth-Number(monthly?.used||0)));
+        if(points===0)continue;
+      }
       await env.DB.prepare(`
         INSERT OR IGNORE INTO loyalty_awards(order_id,customer_id,kind,points,available_at,expires_at)
         SELECT ?,?,?,?,datetime(?,'+14 days'),datetime(?,'+194 days')
         WHERE EXISTS(SELECT 1 FROM orders WHERE id=? AND status='completed')
-      `).bind(o.order_id,id,kind,coins,o.completed_at,o.completed_at,o.order_id).run();
+      `).bind(o.order_id,id,kind,points,o.completed_at,o.completed_at,o.order_id).run();
     }
   }
   const [available,legacy,awards,legacyHistory]=await Promise.all([
