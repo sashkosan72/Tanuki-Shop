@@ -54,7 +54,9 @@ async function profile(){
     if(balance.enabled===true){
       const tier=({Start:'🌱 Start',Fan:'⭐ Fan',VIP:'👑 VIP'})[balance.tier]||'Start';
       const pending=Math.max(0,Number(balance.pending)||0);
-      $('points').textContent='🪙 Tanuki Coins: '+balance.points+' · очікується: '+pending+' · рівень '+tier+' ('+balance.percent+'%).'+(balance.redemptionEnabled?'':' Списання поки недоступне.');
+      const debt=Math.max(0,Math.floor(Number(balance.debt)||0));
+      const legacy=Math.max(0,Math.floor(Number(balance.legacyPoints)||0));
+      $('points').textContent='🪙 Tanuki Coins: '+balance.points+' · очікується: '+pending+' · рівень '+tier+' ('+balance.percent+'%).'+(debt?' Борг за скасованими нарахуваннями: '+debt+' Coins.':'')+(legacy?' Раніше записані бали: '+legacy+' (окремий баланс).':'')+(balance.redemptionEnabled?'':' Списання зараз недоступне.');
       $('bonusDisclosure').textContent='Бонуси нараховуються після завершення замовлення та періоду очікування 14 днів. Діють 180 днів після нарахування.';
     }else{
       $('points').textContent='Бонуси: '+balance.points+' · програма ще не запущена';
