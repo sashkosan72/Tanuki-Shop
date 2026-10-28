@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "build:preview": "wrangler deploy --env preview --dry-run --outdir dist-preview && node scripts/build-preview.mjs",
-    "test": "node tests/password.mjs && npm run build:preview && node tests/integration.mjs",
+    "test": "node tests/password.mjs && node tests/storefront-cart.mjs && npm run build:preview && node tests/integration.mjs",
     "test:preview": "python3 tests/preview-smoke.py"
   },
   "devDependencies": {
