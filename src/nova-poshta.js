@@ -38,9 +38,12 @@ export async function handleNovaPoshtaLookup(request,env){
     const timeout=setTimeout(()=>controller.abort(),12000);
     let response;
     try{
-      response=await fetch(apiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({
-        apiKey:env.NOVA_POSHTA_API_KEY,modelName:"Address",calledMethod,methodProperties
-      }),signal:controller.signal});
+      const payload=JSON.stringify({apiKey:env.NOVA_POSHTA_API_KEY,modelName:"Address",calledMethod,methodProperties});
+      // Transient upstream errors: retry once, without changing any data.
+      for(let attempt=0;attempt<2;attempt++){
+        response=await fetch(apiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:payload,signal:controller.signal});
+        if(response.ok || ![429,500,502,503,504].includes(response.status))break;
+      }
     }finally{clearTimeout(timeout)}
     if(!response.ok)return reply({ok:false,error:"Довідник Нової пошти зараз недоступний."},502);
     const result=await response.json();
