@@ -1971,6 +1971,9 @@ async function createOrder(request, env) {
     300
   );
 
+  const shippingMethod = cleanText(body.shippingMethod || body.shipping_method, 30);
+  if (!["nova_poshta","ukrposhta"].includes(shippingMethod)) return json({ok:false,error:"Оберіть Нову пошту або Укрпошту."},400);
+
   const customerComment = cleanText(
     body.customerComment || body.customer_comment || body.comment,
     1000
@@ -2122,10 +2125,11 @@ async function createOrder(request, env) {
           customer_city,
           customer_address,
           customer_comment,
+          shipping_method,
           total_amount,
           status
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'new')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new')
       `).bind(
         orderNumber,
         customerName,
@@ -2133,6 +2137,7 @@ async function createOrder(request, env) {
         customerCity,
         customerAddress,
         customerComment,
+        shippingMethod,
         totalAmount
       ),
 
@@ -2211,6 +2216,7 @@ async function createOrder(request, env) {
       customerCity,
       customerAddress,
       customerComment,
+      shippingMethod,
       total: totalAmount,
       items: orderItems
     };
@@ -2222,6 +2228,7 @@ async function createOrder(request, env) {
       order_id: orderId,
       order_number: orderNumber,
       total_amount: totalAmount,
+      shipping_method: shippingMethod,
       orderNumber,
       total: totalAmount,
       telegram_link: telegramLink,
@@ -2326,6 +2333,7 @@ async function adminGetOrders(env) {
         customer_city,
         customer_address,
         customer_comment,
+        shipping_method,
         total_amount,
         status,
         created_at
