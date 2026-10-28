@@ -49,4 +49,34 @@ BEGIN
         AND used.status!='cancelled'
     ),0)
  ) THEN RAISE(ABORT,'INSUFFICIENT_COINS') END;
+ -- A revoked award may already have been spent on an earlier order.
+ -- Block any new redemption until later valid earnings cover that debt.
+ SELECT CASE WHEN NEW.points > (
+   COALESCE((
+     SELECT SUM(a.points) FROM loyalty_awards a
+     JOIN orders source ON source.id=a.order_id
+     WHERE a.customer_id=NEW.customer_id
+       AND a.reversed_at IS NULL AND source.status='completed'
+       AND a.available_at<=datetime('now') AND a.expires_at>datetime('now')
+   ),0)-COALESCE((
+     SELECT SUM(s.points) FROM loyalty_spends s
+     JOIN orders used ON used.id=s.order_id
+     WHERE s.customer_id=NEW.customer_id
+       AND s.refunded_at IS NULL AND used.status!='cancelled'
+   ),0)
+ ) THEN RAISE(ABORT,'COINS_DEBT_OR_BALANCE') END;
+END;
+
+-- Database-enforced 100 Coins/order and 300 Coins/customer/vesting-month limit.
+-- SQL abort prevents a second concurrent wallet read from exceeding the cap.
+CREATE TRIGGER IF NOT EXISTS trg_loyalty_awards_monthly BEFORE INSERT ON loyalty_awards
+BEGIN
+ SELECT CASE WHEN NEW.kind='base' AND (
+   NEW.points>100 OR
+   NEW.points+COALESCE((
+     SELECT SUM(points) FROM loyalty_awards
+     WHERE customer_id=NEW.customer_id AND kind='base'
+       AND substr(available_at,1,7)=substr(NEW.available_at,1,7)
+   ),0)>300
+ ) THEN RAISE(ABORT,'COINS_MONTHLY_CAP') END;
 END;
