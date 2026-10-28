@@ -1,3 +1,4 @@
+import {handleNovaPoshtaLookup} from "./nova-poshta.js";
 import {adminPromotions, quotePromotion, discountFor, PromotionError} from "./promotions.js";
 import {publicPartners, adminPartners} from "./partners.js";
 import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
@@ -2725,6 +2726,8 @@ export default {
           Allow: "GET, POST"
         });
       }
+
+      if (path === "/api/shipping/nova-poshta") return handleNovaPoshtaLookup(request,env);
 
       /* ---------- CREATE ORDER ---------- */
 
