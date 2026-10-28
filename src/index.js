@@ -1,8 +1,8 @@
 import {handleNovaPoshtaLookup} from "./nova-poshta.js";
 import {adminPromotions, quotePromotion, discountFor, PromotionError} from "./promotions.js";
 import {publicPartners, adminPartners} from "./partners.js";
-import {handleCustomerRoute, confirmAccountFromTelegram} from "./customer-auth.js";
-import {noteOrderStatus} from "./tanuki-coins.js";
+import {handleCustomerRoute, confirmAccountFromTelegram, currentUser} from "./customer-auth.js";
+import {noteOrderStatus,coinsEnabled,redemptionLimit,previewWallet} from "./tanuki-coins.js";
 import {telegramBotUsername, siteOrigin} from "./environment.js";
 const ADMIN_SESSION_SECONDS = 8 * 60 * 60;
 
@@ -2116,8 +2116,43 @@ async function createOrder(request, env) {
       throw new Error("Некоректна сума замовлення.");
     }
 
+    let coinsToSpend = 0, redeemedCustomer = null, awardUses = [];
+    if (Object.prototype.hasOwnProperty.call(body,'coins_to_spend')) {
+      if (!coinsEnabled(env)) throw new Error('Списання Tanuki Coins зараз недоступне.');
+      coinsToSpend = body.coins_to_spend;
+      if (!Number.isSafeInteger(coinsToSpend) || coinsToSpend<0) throw new Error('Некоректна кількість Tanuki Coins.');
+      if (coinsToSpend>0) {
+        if (body.promo_code) throw new Error('Промокод і Tanuki Coins не можна поєднувати.');
+        if (coinsToSpend>redemptionLimit(totalAmount)) throw new Error('Можна списати не більше 20% вартості товарів.');
+        redeemedCustomer = await currentUser(request,env);
+        if (!redeemedCustomer) throw new Error('Увійдіть через Telegram, щоб використати Tanuki Coins.');
+        // Reconcile vested award ledger before calculating spendable funds.
+        await previewWallet(env,redeemedCustomer);
+        const awards = await env.DB.prepare(`
+          SELECT a.id,a.points-COALESCE((
+            SELECT SUM(s.points) FROM loyalty_spends s
+            JOIN orders used ON used.id=s.order_id
+            WHERE s.award_id=a.id AND s.refunded_at IS NULL AND used.status!='cancelled'
+          ),0) AS remaining
+          FROM loyalty_awards a JOIN orders source ON source.id=a.order_id
+          WHERE a.customer_id=? AND a.reversed_at IS NULL AND source.status='completed'
+            AND a.available_at<=datetime('now') AND a.expires_at>datetime('now')
+          ORDER BY a.expires_at,a.id
+        `).bind(redeemedCustomer.id).all();
+        let remaining = coinsToSpend;
+        for (const award of awards.results||[]) {
+          const available = Math.max(0,Number(award.remaining)||0);
+          const points=Math.min(available,remaining);
+          if(points>0)awardUses.push({id:award.id,points});
+          remaining-=points;
+          if (remaining===0)break;
+        }
+        if(remaining>0)throw new Error('Недостатньо доступних Tanuki Coins.');
+      }
+    }
     const promotion = body.promo_code ? await discountFor(env, body.promo_code, totalAmount) : null;
     if (promotion) totalAmount = promotion.total;
+    if (coinsToSpend) totalAmount -= coinsToSpend;
     const orderNumber = generateOrderNumber();
 
     const statements = [
@@ -2173,6 +2208,12 @@ async function createOrder(request, env) {
     ];
 
     if (promotion) statements.push(env.DB.prepare(`INSERT INTO order_promotions(order_id,code,percent,subtotal,discount_amount) SELECT id,?,?,?,? FROM orders WHERE order_number=?`).bind(promotion.code,promotion.percent,promotion.subtotal,promotion.discount_amount,orderNumber));
+    // All spends are inserted in the same D1 batch as the new order.
+    // D1 trigger checks expiry, ownership and available award balance atomically.
+    if(coinsToSpend) for(const use of awardUses) statements.push(env.DB.prepare(`
+      INSERT INTO loyalty_spends(order_id,award_id,customer_id,points)
+      SELECT o.id,?,?,? FROM orders o WHERE o.order_number=?
+    `).bind(use.id,redeemedCustomer.id,use.points,orderNumber));
     await env.DB.batch(statements);
 
     const savedOrder = await env.DB.prepare(`
@@ -2221,6 +2262,7 @@ async function createOrder(request, env) {
       customerAddress,
       customerComment,
       shippingMethod,
+      coinsSpent: coinsToSpend,
       total: totalAmount,
       items: orderItems
     };
@@ -2233,6 +2275,7 @@ async function createOrder(request, env) {
       order_number: orderNumber,
       total_amount: totalAmount,
       shipping_method: shippingMethod,
+      coins_spent: coinsToSpend,
       orderNumber,
       total: totalAmount,
       telegram_link: telegramLink,
