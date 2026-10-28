@@ -1,0 +1,48 @@
+name: Tanuki Shop — Preview checks
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Integration and Preview build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Run local Worker and isolated D1 tests
+        run: npm test
+      - name: Validate Preview static pages, brand, and build output
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync,existsSync} from 'node:fs';
+          const html=readFileSync('public/index.html','utf8');
+          assert.ok(existsSync('public/tanuki-logo.svg'),'Logo must exist');
+          assert.ok(existsSync('dist-preview/preview.js'),'Preview Worker build must exist');
+          for(const path of ['public/privacy/index.html','public/cookies/index.html']){
+            assert.ok(existsSync(path),path+' must exist');
+            assert.match(readFileSync(path,'utf8'),/Tanuki Shop/);
+          }
+          assert.match(html,/href="\/privacy\//);
+          assert.match(html,/href="\/cookies\//);
+          assert.match(html,/id="promoCode"/);
+          assert.match(html,/src="\/tanuki-logo.svg"/);
+          assert.match(readFileSync('dist-preview/preview.js','utf8'),/tanuki-logo\.svg/);
+          console.log('Brand, legal pages, promotion UI and bundled Preview assets verified');
+          NODE
