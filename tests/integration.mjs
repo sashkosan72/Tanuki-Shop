@@ -156,6 +156,32 @@ await call('/api/promotions/quote',quote,400);
 await call('/api/orders',{...order,promo_code:promo.code},400);
 const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCookie});assert.equal(adminOrders.d.orders.find(x=>x.id===discounted.order_id).promotion.discount_amount,16);checks++;
 
+// Tanuki Coins integration: isolated D1, feature flag remains off on Production.
+{
+ const {noteOrderStatus,previewWallet}=await import('../src/tanuki-coins.js');
+ const env={DB:db,ENVIRONMENT:'preview',TANUKI_COINS_ENABLED:'true'};
+ const customer=await db.prepare("SELECT id,telegram_id FROM customer_accounts WHERE telegram_id='777'").first();
+ // Existing test order is explicitly linked to this account. Confirm it and backdate
+ // only the isolated completion timestamp to simulate the 14-day vesting period.
+ await db.prepare("UPDATE orders SET status='completed' WHERE id=?").bind(createdOrder.id).run();
+ await noteOrderStatus(env,createdOrder.id,'completed');
+ await db.prepare("UPDATE loyalty_order_completions SET completed_at=datetime('now','-15 days') WHERE order_id=?").bind(createdOrder.id).run();
+ let coins=await previewWallet(env,customer);
+ assert.equal(coins.enabled,true);assert.equal(coins.redemptionEnabled,false);
+ assert.equal(coins.points,37+10+3);checks+=3;
+ const first=await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=?").bind(createdOrder.id).first();
+ assert.equal(first.n,2);checks++;
+ coins=await previewWallet(env,customer);
+ assert.equal(coins.points,50);checks++;
+ assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=?").bind(createdOrder.id).first()).n,2);checks++;
+ await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(createdOrder.id).run();
+ await noteOrderStatus(env,createdOrder.id,'cancelled');
+ coins=await previewWallet(env,customer);
+ assert.equal(coins.points,37);checks++;
+ assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=? AND reversed_at IS NOT NULL").bind(createdOrder.id).first()).n,2);checks++;
+ const productionWallet=await import('../src/tanuki-coins.js');
+ assert.equal(productionWallet.coinsEnabled({ENVIRONMENT:'production',TANUKI_COINS_ENABLED:'true'}),false);checks++;
+}
 console.log(`PASS: ${checks} integration assertions (local Workers runtime + isolated D1; Telegram transport mocked)`);
 }finally{await mf.dispose();}
 
