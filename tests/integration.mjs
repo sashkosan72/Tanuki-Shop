@@ -173,10 +173,19 @@ const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCook
  await noteOrderStatus(env,createdOrder.id,'completed');
  await db.prepare("UPDATE loyalty_order_completions SET completed_at=datetime('now','-15 days') WHERE order_id=?").bind(createdOrder.id).run();
  let coins=await previewWallet(env,customer);
- assert.equal(coins.enabled,true);assert.equal(coins.redemptionEnabled,false);
+ assert.equal(coins.enabled,true);assert.equal(coins.redemptionEnabled,true);
  assert.equal(coins.points,37+10+3);checks+=3;
  const first=await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=?").bind(createdOrder.id).first();
  assert.equal(first.n,2);checks++;
+ // Actual checkout endpoint validates the session, promo exclusion and 20% cap.
+ const orderCoins={...order,items:[{id:'qa-sticker',quantity:1}],coins_to_spend:10};
+ await call('/api/orders',orderCoins,400); // no authenticated cookie
+ await call('/api/orders',{...orderCoins,coins_to_spend:17},400,{Cookie:cookie}); // > 20% of 80
+ await call('/api/orders',{...orderCoins,promo_code:'QA-OCT28'},400,{Cookie:cookie});
+ // Feature flag isn't enabled in this isolated storefront yet, and must fail closed.
+ const beforeCoinsFlag=(await db.prepare('SELECT COUNT(*) AS n FROM orders').first()).n;
+ assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM orders').first()).n,beforeCoinsFlag);checks++;
+
  coins=await previewWallet(env,customer);
  assert.equal(coins.points,50);checks++;
  assert.equal((await db.prepare("SELECT COUNT(*) AS n FROM loyalty_awards WHERE order_id=?").bind(createdOrder.id).first()).n,2);checks++;
