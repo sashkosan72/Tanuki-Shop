@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#281644"><meta name="referrer" content="no-referrer"><title>Кабінет — Tanuki Shop</title>
+<meta name="theme-color" content="#281644"><link rel="icon" type="image/png" href="/tanuki-logo.png"><meta name="referrer" content="no-referrer"><title>Кабінет — Tanuki Shop</title>
 <style>
 *{box-sizing:border-box}body{margin:0;min-height:100vh;font:16px system-ui,sans-serif;background:radial-gradient(ellipse at 20% 0,#714191,#211338 65%);color:#fff}
-header{padding:20px max(5vw,16px)}header a{color:#fff;text-decoration:none;font-weight:900}
+header{padding:20px max(5vw,16px)}header a{display:inline-flex;align-items:center;gap:10px;color:#fff;text-decoration:none;font-weight:900}header img{width:48px;height:48px;object-fit:contain;border-radius:50%}
 main{width:min(470px,calc(100% - 30px));margin:24px auto 60px;padding:28px;border:1px solid #aa78cd;border-radius:24px;background:#211235ea;box-shadow:0 15px 55px #14072699}
 h1{font-size:30px;margin:6px 0 12px}p{line-height:1.6;color:#ead8fb}nav{display:flex;flex-wrap:wrap;gap:7px;margin:24px 0}nav button{border:1px solid #b68cda;background:#382451;color:#fff;border-radius:15px;padding:10px 14px;cursor:pointer;font-weight:700}
 nav button[aria-pressed=true]{background:#c58bfa;color:#1e1033}
@@ -12,7 +12,7 @@ button[type=submit],.action{font:inherit;display:inline-block;border:0;border-ra
 button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid white;outline-offset:3px}
 [hidden]{display:none!important}#message{margin:18px 0;white-space:pre-wrap;overflow-wrap:anywhere}.info{overflow-wrap:anywhere;background:#43275b;border-radius:15px;padding:16px;margin:18px 0}
 small{color:#e1c4ec}a{color:#f4b9ff}
-</style></head><body><header><a href="/">← 🦝 Tanuki Shop</a></header>
+</style></head><body><header><a href="/"><img src="/tanuki-logo.png" alt="" width="48" height="48">← Tanuki Shop</a></header>
 <main><h1>Особистий кабінет 💜</h1>
 <p>Увійдіть через Telegram. Якщо ви тут уперше, акаунт створиться автоматично — пароль не потрібен.</p>
 <p id="message" role="status" aria-live="polite"></p>
