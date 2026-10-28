@@ -18,12 +18,13 @@
 - D1 order insertion, order items and award spend records are in a single batch transaction. Stock reservation rollbacks are handled by existing checkout error path.
 - Status cancellation marks award reversals and refunds spent Coins, keeping the original order history.
 - Automated integration covers real test checkout with 10 Coins, a 20% rejection, duplicate/overspend attempt, refund on cancellation, unrelated-user rejection, and production feature-flag protection.
-- Latest CI verified green: https://github.com/sashkosan72/Tanuki-Shop/actions/runs/40737453709
+- D1 trigger also blocks over-300 monthly issuance and redemption while an earlier award has been reversed but its Coins already spent. Legacy wallet points remain separate from spendable Tanuki Coins.
+- CI verified green after debt/legacy split: https://github.com/sashkosan72/Tanuki-Shop/actions/runs/40738459546
 
 ## Outstanding before enabling on a public Preview
 1. End-to-end test on a dedicated new Worker backed by disposable Preview D1, including actual Telegram login with Preview-only bot credentials. Existing Preview PR6 and Production bot secrets must not be moved or exposed.
-2. Harden issuance under simultaneous wallet reads: current monthly cap is non-transactional; make monthly award allocation atomic before real money value can accrue.
-3. Handle cancellation/refund of an **original award-generating order** after the awarded Coins have already been spent elsewhere; resolve debt/recovery policy. Current ledger prevents reusing reversed awards, but further credit/debt reconciliation is necessary.
+2. Monthly cap and account-wide redemption/debt checks now have D1 BEFORE INSERT triggers with passing isolated tests. Still require a live Preview concurrency load test and staff-controlled issuance before launch.
+3. Reversing a spent award now creates a visible Coins debt and blocks future redemptions until valid awards offset it. A customer support/refund policy and staging end-to-end reconciliation still need approval.
 4. Ensure staff can only mark orders 'completed' after verified payment; payment via IBAN has no automatic payment confirmation.
 5. Add explicit customer confirmation of non-combinable promo/Coins states and broader accessibility/mobile/real-browser QA.
 6. Verify migration with rollback on disposable Preview D1 before any release plan. Production database and its 49 existing orders remain untouched.
