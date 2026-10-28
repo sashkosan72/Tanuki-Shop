@@ -86,6 +86,12 @@ assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:99}]},400);
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:2},{id:'qa-soldout',quantity:1}]},400);
 assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,7);checks++;
+// Invalid shipping must not create an order or reserve stock.
+const beforeInvalid=(await db.prepare('SELECT COUNT(*) AS n FROM orders').first()).n;
+const stockInvalid=(await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock;
+await call('/api/orders',{...order,shippingMethod:'not-a-provider'},400);
+assert.equal((await db.prepare('SELECT COUNT(*) AS n FROM orders').first()).n,beforeInvalid);checks++;
+assert.equal((await db.prepare("SELECT stock FROM products WHERE id='qa-sticker'").first()).stock,stockInvalid);checks++;
 await call('/api/orders',{...order,items:[]},400);
 await call('/api/orders',{...order,items:[{id:'qa-sticker',quantity:-1}]},400);
 
