@@ -380,6 +380,7 @@
       <h2>🛒 Ваш кошик</h2>
       <button id="closeCart" type="button" aria-label="Закрити">✕</button>
     </div>
+    <p id="cartStockNotice" role="status" aria-live="polite" hidden style="margin:12px 20px;color:#70406f"></p>
     <div id="cartItems" class="cart-items"></div>
     <div id="emptyCart" class="empty-cart">
       🦝
@@ -488,6 +489,14 @@
     return cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   }
 
+  // Limit quantities using the current catalog; the server independently enforces stock.
+  function allowedQuantity(source) {
+    if (!source?.available) return 0;
+    if (!source.track_stock) return MAX_QUANTITY;
+    const stock = Number(source.stock);
+    return Number.isSafeInteger(stock) && stock > 0 ? Math.min(MAX_QUANTITY, stock) : 0;
+  }
+
   function saveCart() {
     try {
       localStorage.setItem(CART_KEY, JSON.stringify(cart));
@@ -500,26 +509,31 @@
     try {
       const saved = JSON.parse(localStorage.getItem(CART_KEY) || "[]");
       if (!Array.isArray(saved)) return;
-
       const normalized = new Map();
+      let changed = false;
 
       for (const item of saved) {
-        if (!item || typeof item.id !== "string") continue;
+        if (!item || typeof item.id !== "string") { changed = true; continue; }
         const product = productCatalog[item.id];
+        const source = products.find(p => p.id === item.id);
         const quantity = Number(item.quantity);
-
-        if (!product || !Number.isSafeInteger(quantity) || quantity < 1) continue;
-
-        normalized.set(
-          item.id,
-          Math.min(MAX_QUANTITY, (normalized.get(item.id) || 0) + quantity)
-        );
+        const limit = allowedQuantity(source);
+        if (!product || !Number.isSafeInteger(quantity) || quantity < 1 || limit === 0) {
+          changed = true;
+          continue;
+        }
+        const total = (normalized.get(item.id) || 0) + quantity;
+        const adjusted = Math.min(limit, total);
+        if (adjusted !== total) changed = true;
+        normalized.set(item.id, adjusted);
       }
 
       cart = [...normalized.entries()].map(([id, quantity]) => ({
-        ...productCatalog[id],
-        quantity
+        ...productCatalog[id], quantity
       }));
+      const notice = $("cartStockNotice");
+      notice.hidden = !changed;
+      notice.textContent = changed ? "Кошик оновлено: недоступні товари вилучено або їх кількість зменшено відповідно до залишків." : "";
     } catch (error) {
       console.error("Cart loading error:", error);
       cart = [];
@@ -824,7 +838,7 @@
 
       const plus = makeElement("button", "", "+");
       plus.type = "button";
-      plus.disabled = item.quantity >= MAX_QUANTITY;
+      plus.disabled = item.quantity >= allowedQuantity(products.find(p => p.id === item.id));
       plus.setAttribute("aria-label", "Збільшити кількість");
       plus.addEventListener("click", () => changeQuantity(item.id, 1));
 
@@ -852,16 +866,14 @@
     }
 
     const existing = cart.find(item => item.id === id);
-
-    if (existing) {
-      if (existing.quantity >= MAX_QUANTITY) {
-        alert("Максимальна кількість одного товару — 99.");
-        return;
-      }
-      existing.quantity++;
-    } else {
-      cart.push({ ...product, quantity: 1 });
+    const limit = allowedQuantity(source);
+    if ((existing?.quantity || 0) >= limit) {
+      alert("Більше одиниць цього товару зараз немає в наявності.");
+      return;
     }
+
+    if (existing) existing.quantity++;
+    else cart.push({ ...product, quantity: 1 });
 
     updateCart();
   }
@@ -870,8 +882,8 @@
     const item = cart.find(product => product.id === id);
     if (!item) return;
 
-    if (amount > 0 && item.quantity >= MAX_QUANTITY) {
-      alert("Максимальна кількість одного товару — 99.");
+    if (amount > 0 && item.quantity >= allowedQuantity(products.find(p => p.id === id))) {
+      alert("Більше одиниць цього товару зараз немає в наявності.");
       return;
     }
 
@@ -894,6 +906,8 @@
       return;
     }
     closeCart();
+    // Do not carry an unverified code over from a previous checkout attempt.
+    $("promoCode").value = "";
     clearPromo();
     $("checkoutTotal").textContent = formatPrice(getTotal());
     checkoutModal.classList.add("active");
