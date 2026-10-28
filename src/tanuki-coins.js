@@ -74,12 +74,10 @@ export async function previewWallet(env,customer){
     if(!Number.isSafeInteger(total)||total<0)continue;
     const a=calculateAward(total,completedSpend,i+1,gifts);
     completedSpend+=total;
-    const {ready}=await env.DB.prepare(`SELECT
-      datetime(?,'+14 days')<=datetime('now') AS ready,
-      datetime(?,'+194 days')>datetime('now') AS not_expired`).bind(o.completed_at,o.completed_at).first()
-      .then(x=>({ready:!!x?.ready,notExpired:!!x?.not_expired}));
-    const stillValid=await env.DB.prepare("SELECT datetime(?,'+194 days')>datetime('now') AS valid").bind(o.completed_at).first();
-    if(!stillValid?.valid)continue;
+    const clock=await env.DB.prepare(`SELECT datetime(?,'+14 days')<=datetime('now') AS ready,
+      datetime(?,'+194 days')>datetime('now') AS valid`).bind(o.completed_at,o.completed_at).first();
+    if(!clock?.valid)continue;
+    const ready=!!clock.ready;
     if(!ready){pending+=a.base+a.milestone;continue;}
     for(const [kind,coins] of [['base',a.base],['milestone',a.milestone]]){
       if(coins<1)continue;
