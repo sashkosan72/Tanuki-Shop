@@ -233,6 +233,27 @@ const adminOrders=await call('/api/admin/orders',undefined,200,{Cookie:adminCook
  await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(cid).run();
  await assert.rejects(()=>db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,?)").bind(checkout3.meta.last_row_id,aid,customer.id,1).run());checks++;
 }
+// Additional D1 guards for monthly caps and revoked spent awards.
+{
+ const customer=await db.prepare("SELECT id FROM customer_accounts WHERE telegram_id='777'").first();
+ const makeSource=async label=>(await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES(?,'QA','000','test','test',1000,'completed','nova_poshta')").bind(label).run()).meta.last_row_id;
+ const id1=await makeSource('QA-COINS-MONTH-1'),id2=await makeSource('QA-COINS-MONTH-2'),id3=await makeSource('QA-COINS-MONTH-3');
+ const award=async (oid,n)=>db.prepare("INSERT INTO loyalty_awards(order_id,customer_id,kind,points,available_at,expires_at) VALUES(?,?,'base',?,datetime('now','-1 day'),datetime('now','+30 days'))").bind(oid,customer.id,n).run();
+ await award(id1,100);await award(id2,100);checks+=2;
+ await assert.rejects(()=>award(id3,101),/COINS_MONTHLY_CAP|D1_ERROR/);checks++;
+ // Revocation after spending 100 Coins creates a debt when no other valid awards remain.
+ const owner=(await db.prepare("SELECT id FROM customer_accounts WHERE telegram_id='999'").first()).id;
+ const source=await makeSource('QA-COINS-DEBT-SOURCE');
+ const a=(await db.prepare("INSERT INTO loyalty_awards(order_id,customer_id,kind,points,available_at,expires_at) VALUES(?,?,'milestone',60,datetime('now','-1 day'),datetime('now','+30 days'))").bind(source,owner).run()).meta.last_row_id;
+ const spend=await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES('QA-COINS-DEBT-SPEND','QA','000','test','test',200,'new','nova_poshta')").run();
+ await db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,60)").bind(spend.meta.last_row_id,a,owner).run();
+ await db.prepare("UPDATE orders SET status='cancelled' WHERE id=?").bind(source).run();
+ await db.prepare("UPDATE loyalty_awards SET reversed_at=CURRENT_TIMESTAMP WHERE id=?").bind(a).run();
+ const fresh=await makeSource('QA-COINS-DEBT-FRESH');
+ const freshAward=(await db.prepare("INSERT INTO loyalty_awards(order_id,customer_id,kind,points,available_at,expires_at) VALUES(?,?,'milestone',30,datetime('now','-1 day'),datetime('now','+30 days'))").bind(fresh,owner).run()).meta.last_row_id;
+ const newOrder=(await db.prepare("INSERT INTO orders(order_number,customer_name,customer_phone,customer_city,customer_address,total_amount,status,shipping_method) VALUES('QA-COINS-DEBT-NEW','QA','000','test','test',100,'new','nova_poshta')").run()).meta.last_row_id;
+ await assert.rejects(()=>db.prepare("INSERT INTO loyalty_spends(order_id,award_id,customer_id,points) VALUES(?,?,?,1)").bind(newOrder,freshAward,owner).run(),/COINS_DEBT_OR_BALANCE|D1_ERROR/);checks++;
+}
 console.log(`PASS: ${checks} integration assertions (local Workers runtime + isolated D1; Telegram transport mocked)`);
 }finally{await mf.dispose();}
 
