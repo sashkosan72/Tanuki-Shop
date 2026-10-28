@@ -82,7 +82,8 @@ async function profile(){
       for(const order of result.orders){
         const item=document.createElement('p');
         const amount=Number.isFinite(order.total)?order.total+' ₴':'Сума невідома';
-        item.textContent=String(order.orderNumber||'Замовлення')+' · '+(statuses[order.status]||'Статус уточнюється')+' · '+amount;
+        const carrier=({nova_poshta:'Нова пошта',ukrposhta:'Укрпошта'})[order.shippingMethod]||'Не вказано';
+        item.textContent=String(order.orderNumber||'Замовлення')+' · '+(statuses[order.status]||'Статус уточнюється')+' · '+amount+' · Доставка: '+carrier;
         ordersBox.append(item);
       }
     }
