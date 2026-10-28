@@ -1,5 +1,6 @@
 /* Tanuki Shop customer accounts. Requires preview D1 migration. Disabled by default. */
 import {telegramBotUsername, telegramReady, siteOrigin} from './environment.js';
+import {coinsEnabled,previewWallet} from './tanuki-coins.js';
 const COOKIE="__Host-tanuki_customer",ENC=new TextEncoder();
 const ok=(data,status=200,headers={})=>new Response(JSON.stringify(data),{status,headers:{"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff",...headers}});
 const err=(message,status=400)=>ok({ok:false,error:message},status);
@@ -116,6 +117,7 @@ export async function handleCustomerRoute(request,env){
         shippingMethod:o.shipping_method
       }))});
     }
+    if(coinsEnabled(env)) return ok(await previewWallet(env,customer));
     // Read only the current account's ledger entries; never take customer_id from the request.
     // The bonus program remains disabled until accrual and redemption rules are approved.
     const [balance,history]=await Promise.all([
