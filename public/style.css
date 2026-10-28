@@ -1339,3 +1339,13 @@ button:disabled {
 @media(max-width:480px){.logo {font-size:18px;gap:6px;}.logo img {width:38px;height:38px;}}
 
 .footer-inner{flex-wrap:wrap;gap:20px}#support-chat{max-width:360px}#chatNotice{font-size:12px}#loadSupportChat{font:inherit;padding:10px;border:1px solid #b69cde;border-radius:12px;background:#fff;cursor:pointer}
+
+/* Store hours and contact details, readable on mobile. */
+.footer-contacts{min-width:min(100%,260px);flex:1 1 280px;}
+.footer-contacts h2{font-size:18px;margin:0 0 8px;color:var(--pink-dark)}
+.footer-contacts a{color:var(--purple-dark,#6b35a6);text-decoration:underline;text-underline-offset:3px;font-weight:800;overflow-wrap:anywhere}
+.store-hours{margin:12px 0;display:grid;gap:7px}
+.store-hours div{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;justify-content:space-between}
+.store-hours dt{font-size:14px;color:var(--muted)}
+.store-hours dd{font-size:14px;font-weight:800;margin:0}
+@media(max-width:600px){.footer-contacts{flex-basis:100%;}.store-hours div{justify-content:flex-start}}
