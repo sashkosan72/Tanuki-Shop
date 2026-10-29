@@ -27,6 +27,8 @@ jobs:
         run: npm ci
       - name: Run local Worker and isolated D1 tests
         run: npm test
+      - name: Verify additive migrations without Production data
+        run: python3 tests/pr11-migrations.py
       - name: Validate Preview static pages, brand, and build output
         run: |
           node --input-type=module <<'NODE'
