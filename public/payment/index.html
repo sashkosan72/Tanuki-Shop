@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#fff8fc"><meta name="robots" content="noindex,nofollow">
+<link rel="icon" type="image/png" href="/tanuki-logo.png">
+<title>Оплата за реквізитами — Tanuki Shop</title>
+<style>
+:root{color-scheme:light}*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 30% 0%,#fff0fd,#fffaff 54%,#f4e8ff);color:#493447;font:16px/1.65 system-ui,sans-serif}
+main{max-width:780px;margin:0 auto;padding:24px 18px 66px}
+a{color:#6936a5}.brand{display:flex;align-items:center;gap:10px;font-weight:900;text-decoration:none}.brand img{width:46px;height:46px;object-fit:contain;border-radius:50%}
+h1{font-size:clamp(28px,6vw,38px);line-height:1.2;margin:28px 0 12px}h2{font-size:21px}
+.panel{background:white;border:1px solid #e7d4ec;border-radius:22px;padding:22px;box-shadow:0 12px 36px #75409915;margin-top:22px}
+.warning{background:#fff2df;border-left:4px solid #b87727;padding:15px;border-radius:12px}
+.field{margin:18px 0}.field label{font-size:13px;color:#745b77;display:block;font-weight:700}.value{overflow-wrap:anywhere;font-weight:800;margin:6px 0}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+button{font:inherit;font-weight:750;background:#6936a5;color:#fff;border:none;border-radius:12px;padding:9px 14px;cursor:pointer}
+button:hover{background:#53277c}button:focus-visible,a:focus-visible,input:focus-visible{outline:3px solid #ac56d0;outline-offset:3px}
+input{width:100%;max-width:440px;padding:11px;border:1px solid #b69ac1;border-radius:10px;font:inherit}
+#copyStatus{min-height:1.8em;color:#3a6239;font-size:14px}
+footer{border-top:1px solid #e6d8e7;padding-top:19px;margin-top:30px;display:flex;flex-wrap:wrap;gap:14px}
+</style>
+</head>
+<body><main>
+<a class="brand" href="/"><img src="/tanuki-logo.png" alt="" width="46" height="46">Tanuki Shop</a>
+<h1>Оплата за банківськими реквізитами</h1>
+<p>Тут можна скопіювати дані для переказу. Магазин не списує кошти автоматично та не перевіряє оплату банку в реальному часі.</p>
+<p class="warning"><strong>Переказуйте кошти лише після підтвердження замовлення продавцем.</strong> Уточніть фінальну суму, наявність товарів і доставку. Форма замовлення сама по собі не підтверджує оплату.</p>
+<div class="panel">
+<h2>Дані отримувача</h2>
+<div class="field"><label>Отримувач</label><div class="row"><p id="payee" class="value">САН ОЛЕКСАНДР РОСТИСЛАВОВИЧ</p><button type="button" data-copy="payee">Копіювати</button></div></div>
+<div class="field"><label>IBAN (гривневий рахунок)</label><div class="row"><p id="iban" class="value">UA493052990262066401014144956</p><button type="button" data-copy="iban">Копіювати IBAN</button></div></div>
+<div class="field">
+<label for="orderNumber">Номер замовлення</label>
+<input id="orderNumber" type="text" autocomplete="off" spellcheck="false" maxlength="19" placeholder="TAN-YYYYMMDD-XXXXXX" aria-describedby="orderHelp">
+<p id="orderHelp">Номер зазначено в підтвердженні після оформлення. Він потрібний для звірки переказу з вашим замовленням.</p>
+</div>
+<div class="field"><label>Призначення платежу</label><div class="row"><p id="purpose" class="value">Вкажіть номер замовлення, щоб отримати призначення платежу.</p><button id="copyPurpose" type="button" data-copy="purpose" disabled>Копіювати призначення</button></div></div>
+<p id="copyStatus" role="status" aria-live="polite"></p>
+</div>
+<h2>Після переказу</h2><p>Збережіть квитанцію. Для підтвердження оплати зв'яжіться з <a href="/#support-chat">підтримкою</a> та вкажіть номер замовлення; передавайте лише необхідну інформацію. Переказ не змінює статус замовлення автоматично.</p>
+<p>Потрібні умови доставки? Перегляньте <a href="/delivery/">оплату й доставку</a>, <a href="/terms/">умови замовлення</a> та <a href="/returns/">повернення</a>.</p>
+<footer><a href="/">До магазину</a><a href="/delivery/">Оплата й доставка</a><a href="/privacy/">Конфіденційність</a></footer>
+</main>
+<script>
+(()=>{
+ 'use strict';
+ const input=document.getElementById('orderNumber'),purpose=document.getElementById('purpose'),copyPurpose=document.getElementById('copyPurpose'),status=document.getElementById('copyStatus');
+ const initial=new URLSearchParams(location.search).get('order')||'';
+ if(/^TAN-\d{8}-[0-9A-F]{6}$/.test(initial))input.value=initial;
+ function update(){
+  const order=input.value.trim().toUpperCase();
+  const valid=/^TAN-\d{8}-[0-9A-F]{6}$/.test(order);
+  purpose.textContent=valid?'Оплата замовлення №'+order+', Tanuki Shop':'Вкажіть коректний номер замовлення.';
+  copyPurpose.disabled=!valid;
+  status.textContent='';
+ }
+ input.addEventListener('input',update);update();
+ for(const button of document.querySelectorAll('[data-copy]'))button.addEventListener('click',async()=>{
+  if(button.disabled)return;
+  const value=document.getElementById(button.dataset.copy)?.textContent||'';
+  try{
+   if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');
+   await navigator.clipboard.writeText(value);
+   status.textContent='Скопійовано.';
+  }catch{
+   status.textContent='Не вдалося скопіювати автоматично. Виділіть текст і скопіюйте вручну.';
+  }
+ });
+})();
+</script></body></html>

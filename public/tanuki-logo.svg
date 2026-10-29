@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+<title id="title">Tanuki Shop</title><desc id="desc">Стилізований танукі на фіолетовому круглому тлі з квітами сакури</desc>
+<defs>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#402276"/><stop offset=".55" stop-color="#8046b9"/><stop offset="1" stop-color="#ef82c8"/></linearGradient>
+<linearGradient id="fur" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#edc9a8"/><stop offset="1" stop-color="#c38b77"/></linearGradient>
+<linearGradient id="ears" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#b07867"/><stop offset="1" stop-color="#885c69"/></linearGradient>
+</defs>
+<circle cx="256" cy="256" r="245" fill="#fff4fd"/>
+<circle cx="256" cy="256" r="232" fill="url(#bg)"/>
+<circle cx="256" cy="256" r="214" fill="none" stroke="#fff1fd" stroke-opacity=".34" stroke-width="3"/>
+<g fill="#ffdbf2"><path d="M113 111l7 18 18 7-18 7-7 18-7-18-18-7 18-7z"/><path d="M392 110l5 13 13 5-13 5-5 13-5-13-13-5 13-5z"/><path d="M397 355l7 17 17 7-17 7-7 17-7-17-17-7 17-7z"/></g>
+<g transform="translate(0 7)">
+<path d="M133 201L109 95Q164 107 193 142L316 142Q349 103 400 95L379 203" fill="url(#ears)" stroke="#59385e" stroke-width="11" stroke-linejoin="round"/>
+<path d="M135 184L131 130Q159 141 178 167M375 182L380 130Q350 143 335 170" fill="#f8b4cd" opacity=".9"/>
+<ellipse cx="256" cy="273" rx="160" ry="148" fill="url(#fur)" stroke="#59385e" stroke-width="11"/>
+<ellipse cx="178" cy="264" rx="72" ry="62" fill="#72445d" transform="rotate(-13 178 264)"/>
+<ellipse cx="334" cy="264" rx="72" ry="62" fill="#72445d" transform="rotate(13 334 264)"/>
+<ellipse cx="256" cy="310" rx="95" ry="82" fill="#fff1df"/>
+<path d="M142 251q35 34 69 0M301 251q35 34 69 0" stroke="#261e37" stroke-width="11" fill="none" stroke-linecap="round"/>
+<path d="M246 298q10-8 20 0l14 10q-23 22-47 0z" fill="#4e304a"/>
+<path d="M256 328q-12 25-33 14M256 328q12 25 33 14" stroke="#4e304a" stroke-width="7" fill="none" stroke-linecap="round"/>
+<ellipse cx="138" cy="310" rx="24" ry="12" fill="#ffa2c1" opacity=".8"/>
+<ellipse cx="374" cy="310" rx="24" ry="12" fill="#ffa2c1" opacity=".8"/>
+<path d="M244 144Q219 116 246 91Q281 114 266 149" fill="#a7bd91" stroke="#fff6e9" stroke-width="5"/>
+</g>
+<g transform="translate(102 381) rotate(-15)">
+<g fill="#ffc5e6" stroke="#fff9fe" stroke-width="3"><ellipse rx="14" ry="26" cy="-16"/><ellipse rx="14" ry="26" cy="-16" transform="rotate(72)"/><ellipse rx="14" ry="26" cy="-16" transform="rotate(144)"/><ellipse rx="14" ry="26" cy="-16" transform="rotate(216)"/><ellipse rx="14" ry="26" cy="-16" transform="rotate(288)"/></g><circle r="8" fill="#ffdc7d"/>
+</g>
+</svg>

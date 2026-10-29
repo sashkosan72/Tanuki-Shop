@@ -1,0 +1,34 @@
+name: Import owner-provided Tanuki Shop logo
+on:
+  push:
+    paths:
+      - '.github/workflows/import-tanuki-logo.yml'
+permissions:
+  contents: write
+jobs:
+  import-logo:
+    if: github.ref == 'refs/heads/feature/logo-promocodes-20261028'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download owner-provided logo and verify exact bytes
+        run: |
+          curl --fail --location --retry 3 --max-time 60 'https://d2ol7oe51mr4n9.cloudfront.net/user_3L60dCKspA4Nb0kI0Y4uYO7yQk7/1670be7f-28f9-455d-8bdf-f1ca2479be71.png' --output public/tanuki-logo.png
+          echo '904bbca8c1d0c4725efeec97eaea8e7d99bcd4e44f26ec2bea43d544a3b31923  public/tanuki-logo.png' | sha256sum --check
+      - name: Use uploaded image on all storefront pages
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for file in ['public/index.html','public/privacy/index.html','public/cookies/index.html']:
+              p=Path(file)
+              txt=p.read_text()
+              txt=txt.replace('/tanuki-logo.svg','/tanuki-logo.png').replace('type="image/svg+xml" href="/tanuki-logo.png"','type="image/png" href="/tanuki-logo.png"')
+              p.write_text(txt)
+          PY
+      - name: Commit logo to development branch only
+        run: |
+          git config user.name "Tanuki Shop CI"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/tanuki-logo.png public/index.html public/privacy/index.html public/cookies/index.html
+          git diff --cached --quiet || (git commit -m "Use owner-provided Tanuki Shop logo on storefront" && git push origin HEAD:feature/logo-promocodes-20261028)

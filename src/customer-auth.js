@@ -100,7 +100,7 @@ export async function handleCustomerRoute(request,env){
       // Never look up orders by a buyer's display name, phone number or email.
       if(!customer.telegram_id)return ok({ok:true,orders:[]});
       const linked=await env.DB.prepare(`
-        SELECT o.order_number,o.status,o.total_amount,o.created_at
+        SELECT o.order_number,o.status,o.total_amount,o.created_at,o.shipping_method
         FROM orders o
         INNER JOIN order_telegram_links l ON l.order_id=o.id
         INNER JOIN telegram_customers tc ON tc.id=l.telegram_customer_id
@@ -112,11 +112,22 @@ export async function handleCustomerRoute(request,env){
         orderNumber:o.order_number,
         status:o.status,
         total:Number(o.total_amount),
-        createdAt:o.created_at
+        createdAt:o.created_at,
+        shippingMethod:o.shipping_method
       }))});
     }
-    const balance=await env.DB.prepare("SELECT COALESCE(SUM(points_delta),0) AS points FROM customer_wallet_transactions WHERE customer_id=?").bind(customer.id).first();
-    return ok({ok:true,points:Number(balance?.points||0),enabled:false,currency:"bonus_points",message:"Бонусна програма ще не запущена."});
+    // Read only the current account's ledger entries; never take customer_id from the request.
+    // The bonus program remains disabled until accrual and redemption rules are approved.
+    const [balance,history]=await Promise.all([
+      env.DB.prepare("SELECT COALESCE(SUM(points_delta),0) AS points FROM customer_wallet_transactions WHERE customer_id=?").bind(customer.id).first(),
+      env.DB.prepare("SELECT points_delta,reason,created_at FROM customer_wallet_transactions WHERE customer_id=? ORDER BY id DESC LIMIT 20").bind(customer.id).all()
+    ]);
+    const transactions=(history.results||[]).map(row=>({
+      delta:Number(row.points_delta),
+      reason:String(row.reason||"").slice(0,160),
+      createdAt:row.created_at
+    }));
+    return ok({ok:true,points:Number(balance?.points||0),transactions,enabled:false,currency:"bonus_points",message:"Бонусна програма ще не запущена."});
   }catch(error){
     console.error("Customer API error",error?.name||"unknown");
     return err("Тимчасова помилка. Спробуйте пізніше.",500);

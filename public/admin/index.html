@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex,nofollow">
 <meta name="theme-color" content="#fff4f7">
-<title>Адмін-панель — Tanuki Shop</title>
+<title>Адмін-панель — Tanuki Shop</title><link rel="icon" type="image/png" href="/tanuki-logo.png">
 
 <style>
 :root{
@@ -298,6 +298,7 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
   <nav class="tabs" aria-label="Розділи адмін-панелі">
     <button class="tab active" data-tab="ordersTab" type="button">🛍 Замовлення</button>
     <button class="tab secondary" data-tab="productsTab" type="button">📦 Товари</button>
+    <button class="tab secondary" data-tab="promotionsTab" type="button">🎟️ Промокоди</button>
     <button class="tab secondary" data-tab="partnersTab" type="button">🤝 Партнери</button>
     <button class="tab secondary" data-tab="supportTab" type="button">💬 Підтримка</button>
   </nav>
@@ -440,7 +441,20 @@ hr{border:0;border-top:1px solid var(--border);margin:20px 0}
   </section>
 
   <!-- ПІДТРИМКА -->
-  <section id="partnersTab" class="hidden">
+  <section id="promotionsTab" class="hidden">
+ <div class="panel"><h2>Промокоди</h2><p class="muted">Один код на замовлення. Відсоток від поточних цін, зокрема акційних, без доставки. Кількість використань необмежена до вимкнення або завершення строку дії. Нові коди вимкнені.</p>
+ <button type="button" id="newPromo">Додати промокод</button>
+ <p id="promoAdminNotice" role="status"></p><div id="promoAdminList"></div>
+ <form id="promoForm" class="hidden"><h3 id="promoFormTitle">Новий промокод</h3>
+ <label>Код (3–32 латинські літери, цифри, _ або -)<input name="code" required maxlength="32" pattern="[A-Za-z0-9_-]{3,32}"></label>
+ <label>Знижка, %<input name="percent" type="number" required min="1" max="90" step="1" value="10"></label>
+ <label>Мінімальна сума, ₴<input name="min_total" type="number" required min="0" max="1000000" step="1" value="0"></label>
+ <label>Діє до (місцевий час вашого пристрою; порожньо — без строку)<input name="expires_at" type="datetime-local"></label>
+ <label><input name="active" type="checkbox"> Активувати для покупців</label>
+ <button type="submit" id="savePromo">Зберегти</button><button type="button" id="cancelPromo">Скасувати</button>
+ </form></div>
+ </section>
+ <section id="partnersTab" class="hidden">
     <div class="panel"><h2>Партнери</h2><p class="muted">Керуйте картками на сторінці «Партнерство». Логотип додається за HTTPS-посиланням на зображення.</p>
     <button type="button" id="newPartner">Додати партнера</button><a href="/partners/" target="_blank" rel="noopener">Переглянути сторінку ↗</a>
     <p id="partnerAdminNotice" role="status" aria-live="polite"></p><div id="partnerAdminList"></div></div>
@@ -582,7 +596,7 @@ function showDashboard(){
 }
 
 function showTab(tabId){
-  ["ordersTab","supportTab","productsTab","partnersTab"].forEach(id=>{
+  ["ordersTab","supportTab","productsTab","partnersTab","promotionsTab"].forEach(id=>{
     $(id).classList.toggle("hidden",id!==tabId);
   });
 
@@ -595,6 +609,7 @@ function showTab(tabId){
   if(tabId==="supportTab")loadSupportChats();
   if(tabId==="productsTab")loadAdminProducts(true);
   if(tabId==="partnersTab")loadPartnersAdmin();
+  if(tabId==="promotionsTab")loadPromotions();
 }
 
 document.querySelectorAll(".tab").forEach(button=>{
@@ -638,10 +653,12 @@ function renderOrders(){
             <span class="muted">${esc(o.created_at)}</span>
           </div>
           <strong>${money(o.total_amount)}</strong>
+          ${o.promotion?"<br>🎟️ "+esc(o.promotion.code)+" · −"+money(o.promotion.discount_amount):""}
         </div>
         <div class="details">
           👤 ${esc(o.customer_name)} · 📞 ${esc(o.customer_phone)}<br>
-          📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}
+          📍 ${esc(o.customer_city)}, ${esc(o.customer_address)}<br>
+          🚚 ${esc(({nova_poshta:"Нова пошта",ukrposhta:"Укрпошта"})[o.shipping_method]||"Не вказано")}
           ${o.customer_comment?"<br>💬 "+esc(o.customer_comment):""}
         </div>
         <strong>Товари:</strong>
@@ -1364,6 +1381,36 @@ partnerForm.addEventListener('submit',async event=>{
  event.preventDefault();const e=partnerForm.elements;const payload={name:e.name.value.trim(),description:e.description.value.trim(),url:e.url.value.trim(),image_url:e.image_url.value.trim(),sort_order:Number(e.sort_order.value),active:e.active.checked};
  const button=document.getElementById('savePartner');button.disabled=true;
  try{await partnerWrite('/api/admin/partners'+(partnerId===null?'':'/'+partnerId),partnerId===null?'POST':'PATCH',payload);partnerForm.classList.add('hidden');await loadPartnersAdmin();partnerNotice('Партнера збережено.');}catch(error){partnerNotice(error.message);}finally{button.disabled=false;}
+});
+
+/* Promotions: admin-only writes use the session and same-origin CSRF header. */
+let promoId=null;
+const promoForm=document.getElementById('promoForm');
+function promoNotice(message){document.getElementById('promoAdminNotice').textContent=message;}
+async function loadPromotions(){
+ const list=document.getElementById('promoAdminList');list.replaceChildren();promoNotice('Завантаження…');
+ try {const data=await api('/api/admin/promotions');
+ for(const p of data.promotions){
+ const row=document.createElement('div');row.className='panel';const title=document.createElement('strong');
+ title.textContent=p.code+' · −'+p.percent+'% · від '+money(p.min_total)+' · '+(!p.active?'Вимкнено':p.expires_at&&Date.parse(p.expires_at)<=Date.now()?'Строк минув':'Активний');
+ const date=document.createElement('p');date.textContent=p.expires_at?'До '+new Date(p.expires_at).toLocaleString('uk-UA'):'Без строку дії';
+ const edit=document.createElement('button');edit.type='button';edit.textContent='Редагувати';edit.addEventListener('click',()=>editPromo(p));row.append(title,date,edit);list.append(row);
+ }promoNotice(data.promotions.length?'Промокодів: '+data.promotions.length:'Промокодів ще немає.');
+ }catch(e){promoNotice(e.message);}
+}
+function editPromo(p){
+ promoId=p?.id??null;promoForm.reset();const e=promoForm.elements;e.code.value=p?.code||'';e.percent.value=p?.percent??10;e.min_total.value=p?.min_total??0;e.active.checked=Boolean(p?.active);
+ if(p?.expires_at){const d=new Date(p.expires_at);e.expires_at.value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);}
+ document.getElementById('promoFormTitle').textContent=p?'Редагування промокоду':'Новий промокод';promoForm.classList.remove('hidden');e.code.focus();
+}
+document.getElementById('newPromo').addEventListener('click',()=>editPromo(null));
+document.getElementById('cancelPromo').addEventListener('click',()=>promoForm.classList.add('hidden'));
+promoForm.addEventListener('submit',async event=>{
+ event.preventDefault();const e=promoForm.elements,button=document.getElementById('savePromo');button.disabled=true;
+ try{const payload={code:e.code.value.trim(),percent:Number(e.percent.value),min_total:Number(e.min_total.value),expires_at:e.expires_at.value?new Date(e.expires_at.value).toISOString():null,active:e.active.checked};
+ await partnerWrite('/api/admin/promotions'+(promoId===null?'':'/'+promoId),promoId===null?'POST':'PATCH',payload);
+ promoForm.classList.add('hidden');await loadPromotions();promoNotice('Промокод збережено.');
+ }catch(error){promoNotice(error.message);}finally{button.disabled=false;}
 });
 
 /* -------------------- ПЕРЕВІРКА СЕСІЇ -------------------- */

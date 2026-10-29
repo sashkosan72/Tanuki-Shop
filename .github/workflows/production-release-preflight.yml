@@ -1,0 +1,52 @@
+name: Tanuki Shop — Production release preflight (no deploy)
+on:
+  push:
+    branches: [feature/logo-promocodes-20261028]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    name: Validate native Production assets + Worker bundle, no deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Install pinned dependencies
+        run: npm ci
+      - name: Test isolated D1 + Worker + checkout
+        run: npm test
+      - name: Build production Worker with native static assets (dry run only)
+        run: npx wrangler deploy --dry-run --outdir dist-production
+      - name: Check required public files and generated production bundle
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import {readFileSync,existsSync,statSync,readdirSync} from 'node:fs';
+          const required=['index.html','style.css','account/index.html','admin/index.html',
+            'contacts/index.html','privacy/index.html','cookies/index.html',
+            'delivery/index.html','returns/index.html','terms/index.html',
+            'payment/index.html','tanuki-logo.png'];
+          for(const file of required)assert.ok(existsSync('public/'+file),'Missing native asset: '+file);
+          const logo=readFileSync('public/tanuki-logo.png');
+          assert.ok(logo.length>1000);
+          assert.equal(logo.subarray(0,8).toString('hex'),'89504e470d0a1a0a','PNG must remain binary');
+          const home=readFileSync('public/index.html','utf8');
+          const contact=readFileSync('public/contacts/index.html','utf8');
+          for(const text of ['+380 97 507 99 06','09:00–19:00','12:00–16:00']){
+            assert.ok(home.includes(text) && contact.includes(text),'Missing contact detail '+text);
+          }
+          const config=readFileSync('wrangler.jsonc','utf8');
+          assert.match(config,/"directory": "\.\/public"/);
+          assert.match(config,/"binding": "ASSETS"/);
+          const buildFiles=readdirSync('dist-production').filter(x=>x.endsWith('.js'));
+          assert.ok(buildFiles.length>0,'No Production Worker JS emitted');
+          assert.ok(buildFiles.some(x=>statSync('dist-production/'+x).size>10000));
+          console.log('PASS: production bundle and real binary brand assets assembled. No production changes.');
+          NODE
