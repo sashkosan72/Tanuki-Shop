@@ -2,7 +2,6 @@ name: Tanuki Shop — Production release preflight (no deploy)
 on:
   push:
     branches: [feature/logo-promocodes-20261028]
-    paths: ['.github/workflows/production-release-preflight.yml']
   workflow_dispatch:
 
 permissions:
