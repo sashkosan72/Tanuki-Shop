@@ -13,7 +13,7 @@ url = urlsplit(BASE)
 if (
     url.scheme != "https"
     or not re.fullmatch(
-        r"tanuki-shop-(?:preview(?:-[a-z0-9]+)*|coins-preview(?:-[a-z0-9]+)*)\\.sashh4051\\.workers\\.dev",
+        r"tanuki-shop-(?:preview(?:-[a-z0-9]+)*|coins-preview(?:-[a-z0-9]+)*)\.sashh4051\.workers\.dev",
         url.hostname or "",
     )
     or url.username
@@ -28,7 +28,7 @@ if (
 def check(path, expected, payload=None):
     args = [
         "curl", "--silent", "--show-error", "--max-time", "30",
-        "--write-out", "\\n%{http_code}", BASE + path,
+        "--write-out", "\n%{http_code}", BASE + path,
         "--header", "Accept: application/json",
     ]
     if payload is not None:
@@ -39,7 +39,7 @@ def check(path, expected, payload=None):
             "--data-binary", json.dumps(payload),
         ]
     output = subprocess.check_output(args, text=True)
-    raw, status = output.rsplit("\\n", 1)
+    raw, status = output.rsplit("\n", 1)
     if int(status) != expected:
         raise AssertionError(f"{path}: expected {expected}, got {status}; {raw[:180]}")
     response = json.loads(raw)
